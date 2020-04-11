@@ -218,7 +218,7 @@ def get_MultiScale_ResUnet (input_shape, lossType):
             
 
 def getModel(network, lossType, input_shape):
-    if network in {'msresunet', 'MultiScaleResUnet', 'MSRUNet'}:
+    if network in {'MultiScaleResUnet'}:
         return get_MultiScale_ResUnet(input_shape, lossType)
     else:
         raise ValueError('unknown network ' + network)

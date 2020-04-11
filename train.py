@@ -14,12 +14,12 @@ from keras.callbacks import ModelCheckpoint, CSVLogger
 from keras import backend as K
 
 import matplotlib.pyplot as plt
-from data_generator.data import load_data_single
-from image_segmentation_singleDist_v2 import ImageDataGenerator
-
+from data_handler.data import load_data_single
+from data_handler.image_segmentation_singleDist_v2 import ImageDataGenerator
+from config import config
 import h5py
 import warnings
-from model_factory1 import getModel
+from models.models import getModel
 
 warnings.filterwarnings("ignore")
 
@@ -33,7 +33,7 @@ img_cols = 128  # 768#1024
 img_chnls = 3
 input_shape = (img_rows, img_cols)
 
-modelType = config.modelType 'MultiScaleResUnet'
+modelType = config.modelType #
 cellLoss = 'bce_dice'
 batchSize = 32  # set this as large as possible
 batchSizeVal = batchSize  # leaave this to 1 anyway
@@ -79,8 +79,6 @@ print('-' * 30)
 print('Loading test data...')
 print('-' * 30)
 imgs_test, masks_test, JaccWeights_test, bceWeights_test, pointNucs_test, pointOthers_test, imgNames_test = load_data_single('D:/Nuclick project/Data/nuclick_data/Validation/')
-#for i in range(len(pointNucs_test)):
-#    pointNucs_test[i,] = binary_dilation(pointNucs_test[i,],np.ones((3,3)))
 JaccWeights_test = JaccWeights_test[..., np.newaxis]  # margins = margins.astype('float32')
 bceWeights_test = bceWeights_test[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
 masks_test = masks_test[..., np.newaxis]
@@ -92,11 +90,6 @@ del JaccWeights_test
 del pointNucs_test
 del pointOthers_test
 print('Test data loading is done.')
-
-
-
-
-''' Creating Train and validation lists for cross-validation experiments based on image list'''
 
 
 # Initiating data generators
@@ -111,30 +104,24 @@ train_gen_args = dict(
     shear_range=.1,
     fill_mode='constant',  # Applicable to image onlyS
     albumentation=True,
-#    channel_shift_range=False,  # This must be in range of 255?
-#    contrast_adjustment=False,  #####MOSI
+#    channel_shift_range=False,
+#    contrast_adjustment=False,
 #    illumination_gradient=False,○
-#    intensity_scale_range=0.,  #####MOSI
+#    intensity_scale_range=0.,
 #    sharpness_adjustment=False,
 #    apply_noise=False,
 #    elastic_deformation=False,
     rescale=1. / 255
 )
 
-image_datagen = ImageDataGenerator(**train_gen_args
-                                   )
+image_datagen = ImageDataGenerator(**train_gen_args)
 
 image_datagen_val = ImageDataGenerator(random_click_perturb = 'Train',
     rescale=1. / 255)
 
-'''
-Cross-Validation::: Loop over the different folds and perform train on them.
-Save the best model which has best performance on validation set in each fold.
-'''
 modelBaseName = 'nuclickNuclei_%s_%s' % (modelType, cellLoss)
 if not os.path.exists(modelBaseName):
     os.mkdir(modelBaseName)
-
 
 train_generator = image_datagen.flow(
     imgs, weightMap=dists, mask1=masks,
@@ -161,58 +148,20 @@ modelLogName = "./%s/Log-%s.log" % (modelBaseName, modelName)
 logDir = "./%s/log" % (modelBaseName)
 csv_logger = CSVLogger(modelLogName, append=True, separator='\t')
 
-model = getModel(modelType, cellLoss, marginLoss, input_shape)
+model = getModel(modelType, cellLoss, input_shape)
 model.load_weights(modelSaveName)
-#if multi_gpu:
-#    with tf.device("/cpu:0"):
-#        model = getModel(modelType, cellLoss, marginLoss, input_shape) 
-#else:
-#    model = getModel(modelType, cellLoss, marginLoss, input_shape)
-#
-#if multi_gpu:
-#    model = multi_gpu_model(model, len(gpus))
-    
-# model.load_weights(modelSaveName)
-#model_checkpoint = ModelCheckpointMGPU(model, filepath=modelName + '/'+'weights.{epoch:02d}-{val_loss:.2f}.h5', save_weights_only =True)
-#model_checkpoint = ModelCheckpointMGPU(model, filepath=modelSaveName, monitor='val_loss', mode='min', save_best_only=True)
+
 model_checkpoint = ModelCheckpoint(filepath=modelSaveName, monitor='val_loss', save_best_only=True)
 
 print('-' * 30)
 print('Fitting model...')
 print('-' * 30)
-# model.load_weights(modelSaveName)
-#history = model.fit_generator( train_generator,steps_per_epoch=num_train//batchSize,nb_epoch=10,validation_data = val_generator,
-#                               validation_steps=num_val//batchSizeVal , callbacks=[model_checkpoint,csv_logger], max_queue_size=64, workers=8)
+
 history = model.fit_generator(train_generator, steps_per_epoch=num_train // batchSize, nb_epoch=150,
                               validation_data=val_generator,
                               validation_steps=num_val // batchSizeVal, callbacks=[model_checkpoint, csv_logger],
                               max_queue_size=64, workers=8)
-#
-# print('-' * 30)
-# print('Predicting on validation...')
-# print('-' * 30)
-model.load_weights(modelSaveName)
-batchSizeVal = 1
-val_generator = image_datagen_val.flow(
-    imgs_test, weightMap=dists_test, mask1=masks_test,
-    shuffle=False,
-    batch_size=batchSizeVal,
-    color_mode='rgb',
-    seed=seeddd)
-
-val_predicts  = model.predict_generator(val_generator, steps=num_val // batchSizeVal)
-pred_dir = "./%s/valPred_%s" % (modelBaseName, modelBaseName)
-imgs_mask_test = np.matrix.squeeze(val_predicts, axis=3)
-if not os.path.exists(pred_dir):
-    os.mkdir(pred_dir)
-for image_id in range(0, len(imgs_mask_test)):
-    mask = np.uint8(imgs_mask_test[image_id, :, :] * 255)
-    imsave(os.path.join(pred_dir, imgNames_test[image_id] + '_mask.png'), mask)
-#
-# del model
-# K.clear_session()
-# gc.collect()
 
 print('*' * 90)
-print('Done, Go and enjoy life.')
+print('Done')
 print('*' * 90)
