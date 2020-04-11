@@ -7,7 +7,7 @@ It is a self feeding network!!! train quickly.
 """
 from __future__ import print_function
 
-import os
+import os into Navid
 from skimage.transform import resize
 from skimage.io import imsave
 import numpy as np
