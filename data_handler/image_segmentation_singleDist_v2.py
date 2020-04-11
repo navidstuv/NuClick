@@ -25,10 +25,10 @@ from albumentations import (RGBShift, HueSaturationValue, RandomBrightness, Rand
 
 from keras import backend as K
 from keras.utils.data_utils import Sequence
-from skimage.measure import regionprops, find_contours
+from skimage.measure import regionprops, find_contours, moments
 from skimage.measure import label as bwlabel
-from skimage.morphology import binary_dilation, convex_hull_image, skeletonize
-from skimage.draw import polygon,polygon_perimeter
+from skimage.morphology import binary_dilation, convex_hull_image, skeletonize_3d,skeletonize
+from skimage.draw import polygon,polygon_perimeter, circle
 import matplotlib.pyplot as plt
 
 try:
@@ -336,11 +336,12 @@ def albumentation_transform(x):
                 ], 
                 p=1.),
             OneOf([
-                GaussNoise(var_limit=(5.0, 15.0), p=.3),
+                GaussNoise(var_limit=(5.0, 15.0), p=0.3),
+                ToGray(always_apply=False, p=0.1)
 #                JpegCompression(quality_lower=85, quality_upper=95, p=0.4),
                 ], 
                 p=1),
-        ], p=.75)
+        ], p=.8)
     
     augmented_img = aug(image=x)['image']
     while(np.array_equal(augmented_img,np.zeros(augmented_img.shape)) == True):  #Avoid black images
@@ -923,105 +924,99 @@ class ImageDataGenerator(object):
                 x = random_intensity_scaling(x,self.intensity_scale_range)
                 
 ################################## RANDOMLY Translate the NucPoint::: JUST A LITTLE ####### For TEST
-        dilate_radius = 5
         if self.random_click_perturb == 'Train':
-            refSize = 4000
-            maxPoint = 10
-            minPoint = 4
-            binaryMask = np.uint8(mask1[:,:,0]>(.5))
-            if np.sum(binaryMask)==0:
-                weightMap[:,:,0:1] = np.zeros_like(mask1,dtype=np.float32)
-            else:
+            binaryMask = np.uint8(mask1[:,:,0]>=(1*np.max(mask1)))
+            temp = distance_transform_edt(binaryMask)
+            tempMean = ndi.mean(temp, labels=binaryMask)
+            tempStd = ndi.standard_deviation(temp, labels=binaryMask)
+            tempThresh = np.random.uniform(tempMean-tempStd, tempMean+tempStd)
+            tempThresh = np.max([tempThresh,0])
+            tempThresh = np.min([tempThresh,np.max(temp)-1])
+            newMask = np.float32(temp>tempThresh)
+            if np.sum(newMask)==0:
+                newMask = np.float32(temp>(tempMean/2))
+            if np.sum(newMask)==0:
+                newMask = np.float32(binaryMask)
+            indices = np.argwhere(newMask==1) #
+            if len(indices)>=2:
+                rndIdx = np.random.randint(np.floor(0.2*len(indices)),np.floor(0.8*len(indices)))
+                rndX = indices[rndIdx,1]
+                rndY = indices[rndIdx,0]
+                pointMask = np.zeros_like(mask1)   
+                pointMask[rndY,rndX,0] = 1
+                weightMap[:,:,0:1] = pointMask[:,:,0:1]
+            elif len(indices)==1:
+                rndIdx = 0
+                rndX = indices[rndIdx,1]
+                rndY = indices[rndIdx,0]
+                pointMask = np.zeros_like(mask1)   
+                pointMask[rndY,rndX,0] = 1
+                weightMap[:,:,0:1] = pointMask[:,:,0:1]   
+                
+        if self.random_click_perturb == 'Skeleton':
+            binaryMask = np.uint8(mask1[:,:,0]>(0.9*np.max(mask1[:,:,0])))
+            if np.sum(binaryMask)>100:
                 temp = distance_transform_edt(binaryMask)
-                thisObject = np.uint8(temp>np.random.randint(0,3))
-                thisObject[0,:]=0
-                thisObject[:,0]=0
-                thisObject[-1,:]=0
-                thisObject[:,-1]=0
-                if np.sum(thisObject)<10:
-                    thisObject = binaryMask.copy()
-                cc = find_contours (thisObject,0)
-                cX = np.array([],dtype=np.uint16)
-                cY = np.array([],dtype=np.uint16)
-                for i in range(len(cc)):
-                    c = cc[i]
-                    thisX = np.uint16(c[:,1])
-                    thisY = np.uint16(c[:,0])
-                    cX = np.append(cX,thisX)
-                    cY = np.append(cY,thisY)
-                    
-                # Calculating the number of selected points
-                thisObject_hull = np.uint8(convex_hull_image(thisObject))
-                extent = np.sum(thisObject_hull)/np.sum(thisObject)
-                areaOrder = np.ceil(np.sum(thisObject)/refSize)+1
-                numCandid = np.ceil(areaOrder**extent)
-                minCandid = minPoint
-                maxCandid = np.min([maxPoint,numCandid])
-                maxCandid = np.max([maxCandid,minCandid+1])
-                numPoint = np.random.randint(minCandid,maxCandid)
-                step = len(cX)//numPoint + 1
-                start = np.random.randint(0,2)
-                selectedIdx = np.arange(start*step-step//2,len(cX)-(1-start)*step,step)
-    #            selectedIdx = np.random.randint(0,len(cY)-1,(numPoint,))
-                selectedX = cX[selectedIdx]+np.random.randint(-3,3,size=selectedIdx.shape)
-                selectedX = np.clip(selectedX,0,thisObject.shape[1]-1)
-                selectedY = cY[selectedIdx]+np.random.randint(-3,3,size=selectedIdx.shape)
-                selectedY = np.clip(selectedY,0,thisObject.shape[0]-1)
-                if self.pointMapType=='Polygon':
-                    rr, cc = polygon(selectedY,selectedX,shape=thisObject.shape)
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[rr,cc] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
-                if self.pointMapType=='Polyline':
-                    rr, cc = polygon_perimeter(selectedY,selectedX,shape=thisObject.shape)
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[rr,cc] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
-                if self.pointMapType=='Dilate':
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[selectedY,selectedX] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
-                    weightMap[:,:,0]= binary_dilation(weightMap[:,:,0],np.ones((dilate_radius,dilate_radius),dtype=np.float32))
-                if self.pointMapType==None:
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[selectedY,selectedX] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
+                tempMean = ndi.mean(temp, labels=binaryMask)
+                tempStd = ndi.standard_deviation(temp, labels=binaryMask)
+                tempThresh = 0#np.random.uniform(tempMean-tempStd, tempMean+tempStd)
+                newMask = temp>(tempThresh)
+                if np.sum(newMask)==0:
+                    newMask = temp>(tempThresh/2)
+                if np.sum(newMask)==0:
+                    newMask = binaryMask
+                skel = skeletonize_3d(newMask)
+#                mulMask = np.zeros_like(skel,dtype='float32')
+#                Moments = moments(skel)
+                
+#                shift_amount = 0
+#                tx = np.random.uniform(-shift_amount, shift_amount)
+#                ty = np.random.uniform(-shift_amount,shift_amount) 
+#                shift_matrix = np.array([[1, 0, tx],
+#                                         [0, 1, ty],
+#                                         [0, 0, 1]])
+#                tMat = shift_matrix
+#                shear = np.random.uniform(-0.2, 0.2)
+#                shear_matrix = np.array([[1, -np.sin(shear), 0],
+#                                        [0, np.cos(shear), 0],
+#                                        [0, 0, 1]])
+#                tMat = np.dot(tMat, shear_matrix)
+#                tMat = transform_matrix_offset_center(tMat, h, w)
+                skel = skel[...,np.newaxis]
+#                skel = apply_transform(skel, tMat, img_channel_axis,
+#                                    fill_mode='constant', cval=0, transOrder=0)
+                skel = np.float32(skel)
+#                if np.sum(skel)>6:
+#                # selecting s suitable random portion of the skel as guiding signal
+#                    (Cy,Cx) = (np.uint16(Moments[1, 0] / Moments[0, 0]),np.uint16(Moments[0, 1] / Moments[0, 0]))
+#                    maxRad = 200#np.max([np.sum(skel)//2, 8])
+#                    minRad = 200#np.max([maxRad//4, 4])
+#                    Rad = np.random.uniform(minRad, maxRad)
+#                    [Cy,Cx] = np.round([Cy,Cx]+ np.random.uniform(-minRad, minRad,size=(2,)))# amount of center variaation
+#                    Cy = np.min([Cy,mulMask.shape[0]])
+#                    Cy = np.max([Cy,0])
+#                    Cx = np.min([Cx,mulMask.shape[1]])
+#                    Cx = np.max([Cx,0])
+#                    rr, cc = circle(Cy, Cx, Rad, mulMask.shape)
+#                    mulMask[rr,cc] = 1 
+#                    mulMask = mulMask[...,np.newaxis]
+#                    skel*=mulMask
+            else:
+                skel = np.zeros(binaryMask.shape+(1,),dtype='float32')
+            weightMap[:,:,0:1] = skel[:,:,0:1]
                 
         if self.random_click_perturb == 'Test':
-            selectedX = []
-            selectedY = []
-            thisObject = bwlabel(weightMap[:,:,0]>0)
-            stats = regionprops(thisObject)
-            if len(stats)>0:
-                for region in stats:
-                    thisY = np.floor(region.centroid[0]+np.random.randint(-3,3))
-                    thisY = np.max([0,thisY])
-                    thisY = np.min([thisY,mask1.shape[0]])
-                    thisX = np.floor(region.centroid[1]+np.random.randint(-3,3))
-                    thisX = np.max([thisX,0])
-                    thisX = np.min([thisX,mask1.shape[1]])
-                    selectedX.append(np.int(thisX))
-                    selectedY.append(np.int(thisY))
-                    
-                if self.pointMapType=='Polygon' and len(selectedX)>2:
-                    rr, cc = polygon(selectedY,selectedX,shape=thisObject.shape)
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[rr,cc] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
-                if self.pointMapType=='Polyline' and len(selectedX)>2:
-                    rr, cc = polygon_perimeter(selectedY,selectedX,shape=thisObject.shape)
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[rr,cc] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
-                if self.pointMapType=='Dilate':
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[selectedY,selectedX] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
-                    weightMap[:,:,0]= binary_dilation(weightMap[:,:,0],np.ones((dilate_radius,dilate_radius),dtype=np.float32))
-                if self.pointMapType==None:
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[selectedY,selectedX] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
+            pointPos = np.argwhere(weightMap[:,:,0]>0)
+            if len(pointPos)>0:
+                xPos = pointPos[0,1] + np.random.randint(-3,3)
+                xPos = np.min([xPos,mask1.shape[1]-1])
+                xPos = np.max([xPos,0])
+                yPos = pointPos[0,0] + np.random.randint(-3,3)
+                yPos = np.min([yPos,mask1.shape[0]-1])
+                yPos = np.max([yPos,0])
+                pointMask = np.zeros_like(mask1)
+                pointMask[yPos,xPos,0] = 1
+                weightMap[:,:,0:1] = pointMask[:,:,0:1]  
 
         return x, weightMap, mask1, mask2
 
@@ -1259,7 +1254,7 @@ class NumpyArrayIterator(Iterator):
         
         if data_format == 'channels_last':
             self.mask_shape = self.x.shape[1:3] + (1,)
-            self.dist_shape = self.x.shape[1:3] + (2,)
+            self.dist_shape = self.x.shape[1:3] + (3,)
         else:
             self.mask_shape = (1,) + self.x.shape[1:3]
 		
@@ -1301,7 +1296,7 @@ class NumpyArrayIterator(Iterator):
             elif self.weightMap is None and self.mask2 is None:
                 return batch_x, batch_mask1
             elif self.weightMap is not None and self.mask2 is None:
-                return [batch_x, batch_weightMap], batch_mask1
+                return [batch_x, batch_weightMap], batch_mask1#batch_mask1
             else:
                 return [batch_x, batch_weightMap], [batch_mask1, batch_mask2]
         else:
