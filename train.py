@@ -58,83 +58,257 @@ class ModelCheckpointMGPU(ModelCheckpoint):
 print('-' * 30)
 print('Loading training data...')
 print('-' * 30)
-imgs, masks, JaccWeights, bceWeights, pointNucs, pointOthers, imgNames = load_data_single('D:/Nuclick project/Data/nuclick_data/Train/')
-#for i in range(len(pointNucs)):
-#    pointNucs[i,] = binary_dilation(pointNucs[i,],np.ones((3,3)))
-JaccWeights = JaccWeights[..., np.newaxis]  # margins = margins.astype('float32')
-bceWeights = bceWeights[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
-masks = masks[..., np.newaxis]
-pointNucs = pointNucs[..., np.newaxis]
-pointOthers = pointOthers[..., np.newaxis]
-dists = np.concatenate((pointNucs,pointOthers,JaccWeights),axis=3)
-del bceWeights
-del JaccWeights
-del pointNucs
-del pointOthers
-print('Train data loading is done.')
+if config.application=='nucleus':
+    imgs, masks, JaccWeights, bceWeights, pointNucs, pointOthers, imgNames = load_data_single('D:/Nuclick project/Data/nuclick_data/Train/')
+    #for i in range(len(pointNucs)):
+    #    pointNucs[i,] = binary_dilation(pointNucs[i,],np.ones((3,3)))
+    JaccWeights = JaccWeights[..., np.newaxis]  # margins = margins.astype('float32')
+    bceWeights = bceWeights[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
+    masks = masks[..., np.newaxis]
+    pointNucs = pointNucs[..., np.newaxis]
+    pointOthers = pointOthers[..., np.newaxis]
+    dists = np.concatenate((pointNucs,pointOthers,JaccWeights),axis=3)
+    del bceWeights
+    del JaccWeights
+    del pointNucs
+    del pointOthers
+    print('Train data loading is done.')
+
+if config.application=='cell':
+    imgs, masks, JaccWeights, bceWeights, pointNucs, pointOthers, imgNames = load_data_single(
+        'E:/Nuclick project_Hemato/Data/nuclick_data/Train/')
+    # for i in range(len(pointNucs)):
+    #    pointNucs[i,] = binary_dilation(pointNucs[i,],np.ones((3,3)))
+
+    JaccWeights = JaccWeights[..., np.newaxis]  # margins = margins.astype('float32')
+    bceWeights = bceWeights[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
+    masks = masks[..., np.newaxis]
+    pointNucs = pointNucs[..., np.newaxis]
+    pointOthers = pointOthers[..., np.newaxis]
+    dists = np.concatenate((pointNucs, pointOthers, bceWeights), axis=3)
+
+    del bceWeights
+    del JaccWeights
+    del pointNucs
+    del pointOthers
+
+if config.application=='gland':
+    imgs, masks, JaccWeights, bceWeights, pointNucs, pointOthers, imgNames, imgNumbers = load_data_single(
+        'E:/Nuclick project_Gland/Data/train/')
+    JaccWeights = JaccWeights[..., np.newaxis]  # margins = margins.astype('float32')
+    bceWeights = bceWeights[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
+    masks = masks[..., np.newaxis]
+    pointNucs = pointNucs[..., np.newaxis]
+    pointOthers = pointOthers[..., np.newaxis]
+    dists = np.concatenate((pointNucs, pointOthers, bceWeights),
+                           axis=3)  # np.concatenate((pointNucs,pointOthers,JaccWeights),axis=3)
+    del bceWeights
+    del JaccWeights
+    del pointNucs
+    del pointOthers
+
 
 
 ''' Loading and preprocessing test data'''
 print('-' * 30)
 print('Loading test data...')
 print('-' * 30)
-imgs_test, masks_test, JaccWeights_test, bceWeights_test, pointNucs_test, pointOthers_test, imgNames_test = load_data_single('D:/Nuclick project/Data/nuclick_data/Validation/')
-JaccWeights_test = JaccWeights_test[..., np.newaxis]  # margins = margins.astype('float32')
-bceWeights_test = bceWeights_test[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
-masks_test = masks_test[..., np.newaxis]
-pointNucs_test = pointNucs_test[..., np.newaxis]
-pointOthers_test = pointOthers_test[..., np.newaxis]
-dists_test = np.concatenate((pointNucs_test,pointOthers_test,JaccWeights_test),axis=3)
-del bceWeights_test
-del JaccWeights_test
-del pointNucs_test
-del pointOthers_test
-print('Test data loading is done.')
+if config.application=='nucleus':
+    imgs_test, masks_test, JaccWeights_test, bceWeights_test, pointNucs_test, pointOthers_test, imgNames_test = load_data_single('D:/Nuclick project/Data/nuclick_data/Validation/')
+    JaccWeights_test = JaccWeights_test[..., np.newaxis]  # margins = margins.astype('float32')
+    bceWeights_test = bceWeights_test[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
+    masks_test = masks_test[..., np.newaxis]
+    pointNucs_test = pointNucs_test[..., np.newaxis]
+    pointOthers_test = pointOthers_test[..., np.newaxis]
+    dists_test = np.concatenate((pointNucs_test,pointOthers_test,JaccWeights_test),axis=3)
+    del bceWeights_test
+    del JaccWeights_test
+    del pointNucs_test
+    del pointOthers_test
+    print('Test data loading is done.')
+
+if config.application=='cell':
+    imgs_test, masks_test, JaccWeights_test, bceWeights_test, pointNucs_test, pointOthers_test, imgNames_test = load_data_single(
+        'E:/Nuclick project_Hemato/Data/nuclick_data/Validation/')
+    # for i in range(len(pointNucs_test)):
+    #    pointNucs_test[i,] = binary_dilation(pointNucs_test[i,],np.ones((3,3)))
+
+    JaccWeights_test = JaccWeights_test[..., np.newaxis]  # margins = margins.astype('float32')
+    bceWeights_test = bceWeights_test[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
+    masks_test = masks_test[..., np.newaxis]
+    pointNucs_test = pointNucs_test[..., np.newaxis]
+    pointOthers_test = pointOthers_test[..., np.newaxis]
+    # nucDists_test /= scalingFactor;
+    # othersDists_test /= scalingFactor;
+    dists_test = np.concatenate((pointNucs_test, pointOthers_test, bceWeights_test), axis=3)
+    # dists_test = np.concatenate((pointNucs_test,JaccWeights_test),axis=3)
+
+    del bceWeights_test
+    del JaccWeights_test
+    del pointNucs_test
+    del pointOthers_test
 
 
-# Initiating data generators
-train_gen_args = dict(
-    random_click_perturb = 'Train',
-#    width_shift_range=0.1,
-#    height_shift_range=0.1,
-    horizontal_flip=True,
-    vertical_flip=True,
-    rotation_range=20,
-    zoom_range=(.6, 1.4),  # (0.7, 1.3),
-    shear_range=.1,
-    fill_mode='constant',  # Applicable to image onlyS
-    albumentation=True,
-#    channel_shift_range=False,
-#    contrast_adjustment=False,
-#    illumination_gradient=False,○
-#    intensity_scale_range=0.,
-#    sharpness_adjustment=False,
-#    apply_noise=False,
-#    elastic_deformation=False,
-    rescale=1. / 255
-)
+if config.application=='gland':
+    imgs_test, masks_test, JaccWeights_test, bceWeights_test, pointNucs_test, pointOthers_test, imgNames_test, imgNumbers_test = load_data_single(
+        'E:/Nuclick project_Gland/Data/validation/')
+    # for i in range(len(pointNucs_test)):
+    #    pointNucs_test[i] = binary_dilation(pointNucs_test[i],np.ones((5,5),dtype=np.uint8))
+    JaccWeights_test = JaccWeights_test[..., np.newaxis]  # margins = margins.astype('float32')
+    bceWeights_test = bceWeights_test[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
+    masks_test = masks_test[..., np.newaxis]
+    pointNucs_test = pointNucs_test[..., np.newaxis]
+    pointOthers_test = pointOthers_test[..., np.newaxis]
+    dists_test = np.concatenate((pointNucs_test, pointOthers_test, bceWeights_test),
+                                axis=3)  # dists_test = np.concatenate((pointNucs_test,pointOthers_test,JaccWeights_test),axis=3)
+    del bceWeights_test
+    del JaccWeights_test
+    del pointNucs_test
+    del pointOthers_test
 
-image_datagen = ImageDataGenerator(**train_gen_args)
 
-image_datagen_val = ImageDataGenerator(random_click_perturb = 'Train',
-    rescale=1. / 255)
+if config.application=='nucleus':
+    # Initiating data generators
+    train_gen_args = dict(
+        random_click_perturb = 'Train',
+    #    width_shift_range=0.1,
+    #    height_shift_range=0.1,
+        horizontal_flip=True,
+        vertical_flip=True,
+        rotation_range=20,
+        zoom_range=(.6, 1.4),  # (0.7, 1.3),
+        shear_range=.1,
+        fill_mode='constant',  # Applicable to image onlyS
+        albumentation=True,
+    #    channel_shift_range=False,
+    #    contrast_adjustment=False,
+    #    illumination_gradient=False,○
+    #    intensity_scale_range=0.,
+    #    sharpness_adjustment=False,
+    #    apply_noise=False,
+    #    elastic_deformation=False,
+        rescale=1. / 255
+    )
+    image_datagen = ImageDataGenerator(**train_gen_args)
+    image_datagen_val = ImageDataGenerator(random_click_perturb = 'Train',
+        rescale=1. / 255)
+    modelBaseName = 'nuclickNuclei_%s_%s' % (modelType, cellLoss)
+    if not os.path.exists(modelBaseName):
+        os.mkdir(modelBaseName)
+    train_generator = image_datagen.flow(
+        imgs, weightMap=dists, mask1=masks,
+        shuffle=True,
+        batch_size=batchSize,
+        color_mode='rgb',  # rgbhsvl
+        seed=seeddd)
+    val_generator = image_datagen_val.flow(
+        imgs_test, weightMap=dists_test, mask1=masks_test,
+        shuffle=False,
+        batch_size=batchSizeVal,
+        color_mode='rgb',
+        seed=seeddd)
 
-modelBaseName = 'nuclickNuclei_%s_%s' % (modelType, cellLoss)
-if not os.path.exists(modelBaseName):
-    os.mkdir(modelBaseName)
+if config.application=='cell':
+    # Initiating data generators
+    train_gen_args = dict(
+        random_click_perturb='Train',
+        #    width_shift_range=0.1,
+        #    height_shift_range=0.1,
+        horizontal_flip=True,
+        vertical_flip=True,
+        rotation_range=20.,
+        zoom_range=(.7, 1.3),  # (0.7, 1.3),
+        shear_range=.1,
+        fill_mode='constant',  # Applicable to image onlyS
+        albumentation=True,
+        #    channel_shift_range=False,  # This must be in range of 255?
+        #    contrast_adjustment=False,  #####MOSI
+        #    illumination_gradient=False,
+        #    intensity_scale_range=0.,  #####MOSI
+        #    sharpness_adjustment=False,
+        #    apply_noise=False,
+        #    elastic_deformation=False,
+        rescale=1. / 255
+    )
 
-train_generator = image_datagen.flow(
-    imgs, weightMap=dists, mask1=masks,
-    shuffle=True,
-    batch_size=batchSize,
-    color_mode='rgb',  # rgbhsvl
-    seed=seeddd)
-val_generator = image_datagen_val.flow(
-    imgs_test, weightMap=dists_test, mask1=masks_test,
-    shuffle=False,
-    batch_size=batchSizeVal,
-    color_mode='rgb',
-    seed=seeddd)
+    image_datagen = ImageDataGenerator(**train_gen_args
+                                       )
+
+    image_datagen_val = ImageDataGenerator(random_click_perturb='Train',
+                                           rescale=1. / 255)
+
+    '''
+    Cross-Validation::: Loop over the different folds and perform train on them.
+    Save the best model which has best performance on validation set in each fold.
+    '''
+    modelBaseName = 'nuclickHemato_%s_%s' % (modelType, cellLoss)
+    if not os.path.exists(modelBaseName):
+        os.mkdir(modelBaseName)
+
+    train_generator = image_datagen.flow(
+        imgs, weightMap=dists, mask1=masks,
+        shuffle=True,
+        batch_size=batchSize,
+        color_mode='rgb',  # rgbhsvl
+        seed=seeddd)
+    val_generator = image_datagen_val.flow(
+        imgs_test, weightMap=dists_test, mask1=masks_test,
+        shuffle=False,
+        batch_size=batchSizeVal,
+        color_mode='rgb',
+        seed=seeddd)
+
+if config.application=='gland':
+    # Initiating data generators
+    pointMapT = 'Skeleton'
+    train_gen_args = dict(
+        random_click_perturb='Skeleton',
+        pointMapType=pointMapT,
+        #    width_shift_range=0.1,
+        #    height_shift_range=0.1,
+        horizontal_flip=True,
+        vertical_flip=True,
+        rotation_range=20.,
+        zoom_range=(.5, 1.5),  # (0.7, 1.3),T
+        shear_range=.2,
+        fill_mode='constant',  # Applicable to image onlyS
+        albumentation=True,
+        #    channel_shift_range=False,  # This must be in range of 255?
+        #    contrast_adjustment=False,  #####MOSI
+        #    illumination_gradient=False,
+        #    intensity_scale_range=0.,  #####MOSI
+        #    sharpness_adjustment=False,
+        #    apply_noise=False,
+        #    elastic_deformation=True,
+        rescale=1. / 255
+    )
+
+    image_datagen = ImageDataGenerator(**train_gen_args
+                                       )
+
+    image_datagen_val = ImageDataGenerator(random_click_perturb='SkeletonValid', pointMapType=pointMapT,
+                                           rescale=1. / 255)
+
+    '''
+    Cross-Validation::: Loop over the different folds and perform train on them.
+    Save the best model which has best performance on validation set in each fold.
+    '''
+    modelBaseName = 'nuclickGland_%s_%s_%s' % (pointMapT, modelType, cellLoss)
+    if not os.path.exists(modelBaseName):
+        os.mkdir(modelBaseName)
+
+    train_generator = image_datagen.flow(
+        imgs, weightMap=dists, mask1=masks,
+        shuffle=True,
+        batch_size=batchSize,
+        color_mode='rgb',  # rgbhsvl
+        seed=seeddd)
+    val_generator = image_datagen_val.flow(
+        imgs_test, weightMap=dists_test, mask1=masks_test,
+        shuffle=False,
+        batch_size=batchSizeVal,
+        color_mode='rgb',
+        seed=seeddd)
 
 num_train = imgs.shape[0]  # 0
 num_val = imgs_test.shape[0]  # 0
