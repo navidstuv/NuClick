@@ -33,8 +33,8 @@ img_cols = 128  # 768#1024
 img_chnls = 3
 input_shape = (img_rows, img_cols)
 
-modelType = config.modelType 'MultiScaleResUnet'
-cellLoss = 'bce_dice'
+modelType = config.modelType #'MultiScaleResUnet'
+lossType = 'bce_dice'
 batchSize = 32  # set this as large as possible
 batchSizeVal = batchSize  # leaave this to 1 anyway
 
@@ -131,7 +131,7 @@ image_datagen_val = ImageDataGenerator(random_click_perturb = 'Train',
 Cross-Validation::: Loop over the different folds and perform train on them.
 Save the best model which has best performance on validation set in each fold.
 '''
-modelBaseName = 'nuclickNuclei_%s_%s' % (modelType, cellLoss)
+modelBaseName = 'nuclickNuclei_%s_%s' % (modelType, lossType)
 if not os.path.exists(modelBaseName):
     os.mkdir(modelBaseName)
 
@@ -161,13 +161,13 @@ modelLogName = "./%s/Log-%s.log" % (modelBaseName, modelName)
 logDir = "./%s/log" % (modelBaseName)
 csv_logger = CSVLogger(modelLogName, append=True, separator='\t')
 
-model = getModel(modelType, cellLoss, marginLoss, input_shape)
+model = getModel(modelType, lossType, marginLoss, input_shape)
 model.load_weights(modelSaveName)
 #if multi_gpu:
 #    with tf.device("/cpu:0"):
-#        model = getModel(modelType, cellLoss, marginLoss, input_shape) 
+#        model = getModel(modelType, lossType, marginLoss, input_shape) 
 #else:
-#    model = getModel(modelType, cellLoss, marginLoss, input_shape)
+#    model = getModel(modelType, lossType, marginLoss, input_shape)
 #
 #if multi_gpu:
 #    model = multi_gpu_model(model, len(gpus))
