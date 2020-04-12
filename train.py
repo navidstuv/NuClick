@@ -35,12 +35,12 @@ img_chnls = config.img_chnls
 input_shape = (img_rows, img_cols)
 
 modelType = config.modelType #
-cellLoss = 'bce_dice'
-batchSize = 32  # set this as large as possible
+lossType = config.lossType
+batchSize = config.batchSize
 batchSizeVal = batchSize  # leaave this to 1 anyway
 
 gpus = [x.name for x in K.device_lib.list_local_devices() if x.name[:11] == '/device:GPU']
-multi_gpu = True  # NAVID DO THIS!`
+multiGPU = config.multiGPU  # NAVID DO THIS!`
 
 
 class ModelCheckpointMGPU(ModelCheckpoint):
@@ -194,7 +194,7 @@ if config.application=='nucleus':
     image_datagen = ImageDataGenerator(**train_gen_args)
     image_datagen_val = ImageDataGenerator(random_click_perturb = 'Train',
         rescale=1. / 255)
-    modelBaseName = 'nuclickNuclei_%s_%s' % (modelType, cellLoss)
+    modelBaseName = 'nuclickNuclei_%s_%s' % (modelType, lossType)
     if not os.path.exists(modelBaseName):
         os.mkdir(modelBaseName)
     train_generator = image_datagen.flow(
@@ -243,7 +243,7 @@ if config.application=='cell':
     Cross-Validation::: Loop over the different folds and perform train on them.
     Save the best model which has best performance on validation set in each fold.
     '''
-    modelBaseName = 'nuclickHemato_%s_%s' % (modelType, cellLoss)
+    modelBaseName = 'nuclickHemato_%s_%s' % (modelType, lossType)
     if not os.path.exists(modelBaseName):
         os.mkdir(modelBaseName)
 
@@ -295,7 +295,7 @@ if config.application=='gland':
     Cross-Validation::: Loop over the different folds and perform train on them.
     Save the best model which has best performance on validation set in each fold.
     '''
-    modelBaseName = 'nuclickGland_%s_%s_%s' % (pointMapT, modelType, cellLoss)
+    modelBaseName = 'nuclickGland_%s_%s_%s' % (pointMapT, modelType, lossType)
     if not os.path.exists(modelBaseName):
         os.mkdir(modelBaseName)
 
@@ -324,7 +324,7 @@ modelLogName = "./%s/Log-%s.log" % (modelBaseName, modelName)
 logDir = "./%s/log" % (modelBaseName)
 csv_logger = CSVLogger(modelLogName, append=True, separator='\t')
 
-model = getModel(modelType, cellLoss, input_shape)
+model = getModel(modelType, lossType, input_shape)
 model.load_weights(modelSaveName)
 
 model_checkpoint = ModelCheckpoint(filepath=modelSaveName, monitor='val_loss', save_best_only=True)
