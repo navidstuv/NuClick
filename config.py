@@ -31,7 +31,8 @@ class DefaultConfigs(object):
     #path to train folder comprising info folders and npy folders
     train_data_path = 'F:/Nuclick project_Hemato/Data/nuclick_data/train/' 
     valid_data_path = None
-    weights_path = './weights/'
+    weights_path = './weights'
+    preds_path = './preds'
     
     resumeTraining = False
     outputValPreds = True # whether to run on validation set when training ends

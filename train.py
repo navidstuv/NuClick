@@ -1,6 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sun Jan 14 12:53:23 2018
+This code can be used to train NuClick on your own data. 
+You can train from scratch or fine-tuning one of the existing models.
+Generally, training models follows the scheme of one of following applications:
+    Nucleues, Cell, Glands
+However, you can control the training process by adjusting the parameters in the 
+config.py files.
+
+For more information, read our arXiv paper:
+    NuClick: From Clicks in the Nuclei to Nuclear Boundaries
+    https://arxiv.org/abs/1909.03253
 
 @author: Mosi
 """
@@ -12,21 +21,18 @@ from skimage.io import imsave
 import numpy as np
 from keras.callbacks import ModelCheckpoint, CSVLogger
 from keras import backend as K
-
-import matplotlib.pyplot as plt
 from data_handler.npyDataOps import loadData
 from data_handler.customImageGenerator import ImageDataGenerator
 from config import config
 import h5py
 import warnings
 from models.models import getModel
-
 from utils.ModelCheckpointMGPU import ModelCheckpointMGPU
 warnings.filterwarnings("ignore")
 
 # Setting Parameters
-seeddd = 1
-np.random.seed(seeddd)
+SEED = 1
+np.random.seed(SEED)
 K.set_image_data_format('channels_last')  # TF dimension ordering in this code
 
 img_rows = config.img_rows  # 480#640
@@ -42,10 +48,6 @@ batchSizeVal = batchSize
 
 gpus = [x.name for x in K.device_lib.list_local_devices() if x.name[:11] == '/device:GPU']
 multiGPU = config.multiGPU
-
-
-
-
 
 print('-' * 30)
 print('Loading data...')
@@ -95,27 +97,27 @@ if not config.valid_data_path==None:
     num_train = imgs.shape[0]  # 0
     num_val = imgs_test.shape[0]
     train_generator = image_datagen.flow( imgs, weightMap=guidingSignals, mask=masks,
-        shuffle=True, batch_size=batchSize, color_mode='rgb', seed=seeddd)
+        shuffle=True, batch_size=batchSize, color_mode='rgb', seed=SEED)
     val_generator = image_datagen_val.flow(imgs_test, weightMap=guidingSignals_test, mask=masks_test,
-        shuffle=False, batch_size=batchSizeVal, color_mode='rgb', seed=seeddd)
+        shuffle=False, batch_size=batchSizeVal, color_mode='rgb', seed=SEED)
 else:
     num_train = np.round((1-config.valPrec)*imgs.shape[0])
     num_val = imgs.shape[0]-num_train
     train_generator = image_datagen.flow(imgs[:num_train,], weightMap=guidingSignals[:num_train,], mask=masks[:num_train,],
-        shuffle=True, batch_size=batchSize, color_mode='rgb', seed=seeddd)
+        shuffle=True, batch_size=batchSize, color_mode='rgb', seed=SEED)
     val_generator = image_datagen_val.flow(imgs[num_train:,], weightMap=guidingSignals[num_train:,], mask=masks[num_train:,],
-        shuffle=False, batch_size=batchSizeVal, color_mode='rgb', seed=seeddd)
+        shuffle=False, batch_size=batchSizeVal, color_mode='rgb', seed=SEED)
+    imgNames_test = imgNames[num_train:,]
 
 print('-' * 30)
 print('Creating and compiling model...')
 print('-' * 30)
 # defining names and adresses
 modelBaseName = 'NuClick_%s_%s_%s' % (config.application, modelType, lossType)
-if not os.path.exists(os.path.join(config.weights_path,modelBaseName)):
-    os.mkdir(os.path.join(config.weights_path,modelBaseName))
-modelName = "%s" % (modelBaseName)
-modelSaveName = "./%s/%s/weights-%s.h5" % (config.weights_path, modelBaseName, modelName)
-modelLogName = "./%s/%s/Log-%s.log" % (config.weights_path, modelBaseName, modelName)
+if not os.path.exists(config.weights_path):
+    os.mkdir(config.weights_path)
+modelSaveName = "%s/weights-%s.h5" % (config.weights_path, modelBaseName)
+modelLogName = "%s/Log-%s.log" % (config.weights_path, modelBaseName)
 csv_logger = CSVLogger(modelLogName, append=True, separator='\t')
 
 # creating model instance
@@ -139,6 +141,24 @@ history = model.fit_generator(train_generator, steps_per_epoch=num_train//batchS
                               callbacks=[model_checkpoint, csv_logger], max_queue_size=64, workers=8)
 
 print('*' * 90)
-print('Done')
+print('Training is Done')
 print('*' * 90)
 
+if config.outputValPreds:
+    print('-' * 30)
+    print('Predicting on validation...')
+    print('-' * 30)
+    model.load_weights(modelSaveName)
+    batchSizeVal = 1
+    val_generator.shuffle=False
+    val_generator.batch_size=1
+    val_predicts  = model.predict_generator(val_generator, steps=num_val//batchSizeVal)
+    
+    pred_dir = "%s/valPred_%s" % (config.preds_path, modelBaseName)
+    if not os.path.exists(pred_dir):
+        os.mkdir(pred_dir)
+    
+    imgs_mask_test = np.matrix.squeeze(val_predicts, axis=3)
+    for image_id in range(0, len(imgs_mask_test)):
+        mask = np.uint8(imgs_mask_test[image_id, :, :] * 255)
+        imsave(os.path.join(pred_dir, imgNames_test[image_id] + '_pred.png'), mask)
