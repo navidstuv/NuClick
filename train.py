@@ -28,9 +28,10 @@ seeddd = 1
 np.random.seed(seeddd)
 K.set_image_data_format('channels_last')  # TF dimension ordering in this code
 
-img_rows = 128  # 480#640
-img_cols = 128  # 768#1024
-img_chnls = 3
+img_rows = config.img_rows  # 480#640
+img_cols = config.img_cols  # 768#1024
+img_chnls = config.img_chnls
+
 input_shape = (img_rows, img_cols)
 
 modelType = config.modelType #

@@ -223,4 +223,3 @@ def getModel(network, lossType, input_shape):
     else:
         raise ValueError('unknown network ' + network)
         
-print(config.multiGPU)
