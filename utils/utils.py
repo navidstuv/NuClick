@@ -3,6 +3,7 @@ from skimage.filters import gaussian
 import cv2
 import tkinter
 from tkinter import filedialog
+from skimage.util import pad
 from skimage.transform import rescale
 from keras.models import Model
 from skimage.morphology import remove_small_objects, remove_small_holes, reconstruction, binary_dilation, disk
@@ -163,6 +164,7 @@ def getPatchs(img, clickMap, boundingBoxes, cx, cy, m, n):
     patchs = np.ndarray((total, bb, bb, 3), dtype=np.uint8)
     nucPoints = np.ndarray((total, bb, bb, 1), dtype=np.uint8)
     otherPoints = np.ndarray((total, bb, bb, 1), dtype=np.uint8)
+
     for i in range(len(boundingBoxes)):
         boundingBox = boundingBoxes[i]
         xStart = boundingBox[0]
