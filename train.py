@@ -14,8 +14,8 @@ from keras.callbacks import ModelCheckpoint, CSVLogger
 from keras import backend as K
 
 import matplotlib.pyplot as plt
-from data_handler.data import load_data_single
-from data_handler.image_segmentation_singleDist_v2 import ImageDataGenerator
+from data_handler.npyDataOps import loadData
+from data_handler.customImageGenerator import ImageDataGenerator
 from config import config
 import h5py
 import warnings
@@ -47,119 +47,31 @@ multiGPU = config.multiGPU
 
 
 
-
-''' Loading and preprocessing train data'''
 print('-' * 30)
-print('Loading training data...')
+print('Loading data...')
 print('-' * 30)
+imgs, masks, weightMaps, objectPoints, pointOthers, imgNames = loadData(config.train_data_path)
+weightMaps = weightMaps[..., np.newaxis]
+masks = masks[..., np.newaxis]
+objectPoints = objectPoints[..., np.newaxis]
+pointOthers = pointOthers[..., np.newaxis]
+guidingSignals = np.concatenate((objectPoints,pointOthers,weightMaps),axis=3)
+del weightMaps
+del objectPoints
+del pointOthers
+print('Train data loading is done.')
 
-if config.application=='Nucleus':
-    imgs, masks, JaccWeights, bceWeights, pointNucs, pointOthers, imgNames = load_data_single('D:/Nuclick project/Data/nuclick_data/Train/')
-    #for i in range(len(pointNucs)):
-    #    pointNucs[i,] = binary_dilation(pointNucs[i,],np.ones((3,3)))
-    JaccWeights = JaccWeights[..., np.newaxis]  # margins = margins.astype('float32')
-    bceWeights = bceWeights[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
-    masks = masks[..., np.newaxis]
-    pointNucs = pointNucs[..., np.newaxis]
-    pointOthers = pointOthers[..., np.newaxis]
-    dists = np.concatenate((pointNucs,pointOthers,JaccWeights),axis=3)
-    del bceWeights
-    del JaccWeights
-    del pointNucs
-    del pointOthers
-    print('Train data loading is done.')
-
-if config.application=='Cell':
-    imgs, masks, JaccWeights, bceWeights, pointNucs, pointOthers, imgNames = load_data_single(
-        'E:/Nuclick project_Hemato/Data/nuclick_data/Train/')
-    # for i in range(len(pointNucs)):
-    #    pointNucs[i,] = binary_dilation(pointNucs[i,],np.ones((3,3)))
-
-    JaccWeights = JaccWeights[..., np.newaxis]  # margins = margins.astype('float32')
-    bceWeights = bceWeights[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
-    masks = masks[..., np.newaxis]
-    pointNucs = pointNucs[..., np.newaxis]
-    pointOthers = pointOthers[..., np.newaxis]
-    dists = np.concatenate((pointNucs, pointOthers, bceWeights), axis=3)
-
-    del bceWeights
-    del JaccWeights
-    del pointNucs
-    del pointOthers
-
-if config.application=='Gland':
-    imgs, masks, JaccWeights, bceWeights, pointNucs, pointOthers, imgNames, imgNumbers = load_data_single(
-        'E:/Nuclick project_Gland/Data/train/')
-    JaccWeights = JaccWeights[..., np.newaxis]  # margins = margins.astype('float32')
-    bceWeights = bceWeights[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
-    masks = masks[..., np.newaxis]
-    pointNucs = pointNucs[..., np.newaxis]
-    pointOthers = pointOthers[..., np.newaxis]
-    dists = np.concatenate((pointNucs, pointOthers, bceWeights),
-                           axis=3)  # np.concatenate((pointNucs,pointOthers,JaccWeights),axis=3)
-    del bceWeights
-    del JaccWeights
-    del pointNucs
-    del pointOthers
-
-
-
-''' Loading and preprocessing test data'''
-print('-' * 30)
-print('Loading test data...')
-print('-' * 30)
-if config.application=='nucleus':
-    imgs_test, masks_test, JaccWeights_test, bceWeights_test, pointNucs_test, pointOthers_test, imgNames_test = load_data_single('D:/Nuclick project/Data/nuclick_data/Validation/')
-    JaccWeights_test = JaccWeights_test[..., np.newaxis]  # margins = margins.astype('float32')
-    bceWeights_test = bceWeights_test[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
+if not config.valid_data_path==None:
+    imgs_test, masks_test, weightMaps_test, objectPoints_test, pointOthers_test, imgNames_test = loadData(config.valid_data_path)
+    weightMaps_test = weightMaps_test[..., np.newaxis]
     masks_test = masks_test[..., np.newaxis]
-    pointNucs_test = pointNucs_test[..., np.newaxis]
+    objectPoints_test = objectPoints_test[..., np.newaxis]
     pointOthers_test = pointOthers_test[..., np.newaxis]
-    dists_test = np.concatenate((pointNucs_test,pointOthers_test,JaccWeights_test),axis=3)
-    del bceWeights_test
-    del JaccWeights_test
-    del pointNucs_test
+    guidingSignals_test = np.concatenate((objectPoints_test, pointOthers_test, weightMaps_test),axis=3)
+    del weightMaps_test
+    del objectPoints_test
     del pointOthers_test
     print('Test data loading is done.')
-
-if config.application=='cell':
-    imgs_test, masks_test, JaccWeights_test, bceWeights_test, pointNucs_test, pointOthers_test, imgNames_test = load_data_single(
-        'E:/Nuclick project_Hemato/Data/nuclick_data/Validation/')
-    # for i in range(len(pointNucs_test)):
-    #    pointNucs_test[i,] = binary_dilation(pointNucs_test[i,],np.ones((3,3)))
-
-    JaccWeights_test = JaccWeights_test[..., np.newaxis]  # margins = margins.astype('float32')
-    bceWeights_test = bceWeights_test[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
-    masks_test = masks_test[..., np.newaxis]
-    pointNucs_test = pointNucs_test[..., np.newaxis]
-    pointOthers_test = pointOthers_test[..., np.newaxis]
-    # nucDists_test /= scalingFactor;
-    # othersDists_test /= scalingFactor;
-    dists_test = np.concatenate((pointNucs_test, pointOthers_test, bceWeights_test), axis=3)
-    # dists_test = np.concatenate((pointNucs_test,JaccWeights_test),axis=3)
-
-    del bceWeights_test
-    del JaccWeights_test
-    del pointNucs_test
-    del pointOthers_test
-
-
-if config.application=='gland':
-    imgs_test, masks_test, JaccWeights_test, bceWeights_test, pointNucs_test, pointOthers_test, imgNames_test, imgNumbers_test = load_data_single(
-        'E:/Nuclick project_Gland/Data/validation/')
-    # for i in range(len(pointNucs_test)):
-    #    pointNucs_test[i] = binary_dilation(pointNucs_test[i],np.ones((5,5),dtype=np.uint8))
-    JaccWeights_test = JaccWeights_test[..., np.newaxis]  # margins = margins.astype('float32')
-    bceWeights_test = bceWeights_test[..., np.newaxis]  # sepBorders = sepBorders.astype('float32')
-    masks_test = masks_test[..., np.newaxis]
-    pointNucs_test = pointNucs_test[..., np.newaxis]
-    pointOthers_test = pointOthers_test[..., np.newaxis]
-    dists_test = np.concatenate((pointNucs_test, pointOthers_test, bceWeights_test),
-                                axis=3)  # dists_test = np.concatenate((pointNucs_test,pointOthers_test,JaccWeights_test),axis=3)
-    del bceWeights_test
-    del JaccWeights_test
-    del pointNucs_test
-    del pointOthers_test
 
 
 if config.application=='nucleus':
