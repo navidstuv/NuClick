@@ -2,14 +2,14 @@ import numpy as np
 from skimage.io import imsave
 import matplotlib.pyplot as plt
 from image_segmentation import ImageDataGenerator
-from model_factory1 import getModel
+from models.models import getModel
 from skimage.color import label2rgb
 from config import config
 
 
 from utils.utils import readImageAndGetClicks, getClickMapAndBoundingBox,\
     getPatchs, sharpnessEnhancement, contrastEnhancement,\
-    predictPatchs, postProcessing, generateInstanceMap
+    predictPatchs, postProcessing, generateInstanceMap, readImageAndGetSignals, predictSingleImage
 
 
 bb = 256
@@ -89,7 +89,6 @@ def main():
         pointMapTypes = ['Skeleton']
         # loading models
         models = []
-        tt = len(modelNames) if modelEnsembling else 1
         for i in range(len(modelNames)):
             print('Loading model %s_%s%s into the memory' % (modelNames[i], losses[i], suffixes[i]))
             modelBaseName = 'nuclickGland_%s_%s_%s%s' % (pointMapTypes[i], modelNames[i], losses[i], suffixes[i])

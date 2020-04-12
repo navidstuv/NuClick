@@ -216,3 +216,98 @@ def generateInstanceMap(masks, boundingBoxes, m, n):
         thisMaskPos[:, 1] = thisMaskPos[:, 1] + thisBB[0]
         instanceMap[thisMaskPos[:, 0], thisMaskPos[:, 1]] = i + 1
     return instanceMap
+
+
+def readImageAndGetSignals(currdir=os.getcwd()):
+    drawing = False  # true if mouse is pressed
+    mode = True  # if True, draw rectangle. Press 'm' to toggle to curve
+
+    # mouse callback function
+    def begueradj_draw(event, former_x, former_y, flags, param):
+        global current_former_x, current_former_y, drawing, mode, color
+        if event == cv2.EVENT_LBUTTONDOWN:
+            drawing = True
+            current_former_x, current_former_y = former_x, former_y
+
+        elif event == cv2.EVENT_MOUSEMOVE:
+            if drawing == True:
+                cv2.line(im, (current_former_x, current_former_y), (former_x, former_y), colorPallete[2 * ind], 5)
+                cv2.line(signal, (current_former_x, current_former_y), (former_x, former_y), (ind, ind, ind), 1)
+                current_former_x = former_x
+                current_former_y = former_y
+                # print former_x,former_y
+        elif event == cv2.EVENT_LBUTTONUP:
+            drawing = False
+            cv2.line(im, (current_former_x, current_former_y), (former_x, former_y), colorPallete[2 * ind], 5)
+            current_former_x = former_x
+            current_former_y = former_y
+        return signal
+
+        # load the image, clone it, and setup the mouse callback function
+
+    root = tkinter.Tk()
+    root.withdraw()  # use to hide tkinter window
+    root.wm_attributes('-topmost', 1)
+    imgPath = filedialog.askopenfilename(
+        filetypes=(("PNG", "*.png"), ("JPG", "*.jpg"), ("BMP", "*.bmp"), ("TIF", "*.tif"), ("All files", "*")),
+        parent=root, initialdir=currdir, title='Please select an image')
+    im = cv2.imread(imgPath)
+    signal = np.zeros(im.shape, dtype='uint8')
+    clone = im.copy()
+
+    ind = 1
+    cv2.namedWindow("i=increase object - d=decrease object - esc=ending annotation")
+    cv2.setMouseCallback('i=increase object - d=decrease object - esc=ending annotation', begueradj_draw)
+    while (1):
+        cv2.imshow('i=increase object - d=decrease object - esc=ending annotation', im)
+        k = cv2.waitKey(1) & 0xFF
+        if k == 27:
+            break
+        elif k == ord("i"):
+            ind += 1
+        elif k == ord("d"):
+            ind -= 1
+    cv2.destroyAllWindows()
+    img = clone[:, :, ::-1]
+    signal = signal[:, :, 0]
+    return img, signal, imgPath
+
+
+def predictSingleImage(models, img, markups):
+    patchs, includeMap, excludeMap = getPatchs(img, markups)
+    # patchs, nucPoints, otherPoints = getPatchs(img, clickMap, boundingBoxes, cx, cy, m, n)
+    dists = np.float32(np.concatenate((includeMap, excludeMap, excludeMap), axis=3))  # the last one is only dummy!
+    predNum = 0  # len(models)
+    # dists = clickMap[np.newaxis,...,np.newaxis]
+    if testTimeAug:
+        # sharpenning the image
+        patchs_shappened = patchs.copy()
+        for i in range(len(patchs)):
+            patchs_shappened[i] = sharpnessEnhancement(patchs[i])
+        # contrast enhancing the image
+        patchs_contrasted = patchs.copy()
+        for i in range(len(patchs)):
+            patchs_contrasted[i] = contrastEnhancement(patchs[i])
+
+            # prediction with model ensambling and test time augmentation
+    preds = np.zeros(patchs.shape[:3], dtype=np.float32)
+    for i in range(len(models)):
+        #        print('-----Working on model := %s_%s%s-----' % (modelNames[i], losses[i],suffixes[i]))
+        model = models[i]
+        preds += predictPatchs(model, patchs, dists)
+        predNum += 1
+        #        print("Original images prediction, DONE!")
+        if testTimeAug:
+            #            print("Test Time Augmentation Started")
+            temp = predictPatchs(model, patchs_shappened[:, :, ::-1], dists[:, :, ::-1])
+            preds += temp[:, :, ::-1]
+            predNum += 1
+            #            print("Sharpenned images prediction, DONE!")
+            temp = predictPatchs(model, patchs_contrasted[:, ::-1, ::-1], dists[:, ::-1, ::-1])
+            preds += temp[:, ::-1, ::-1]
+            predNum += 1
+    #            print("Contrasted images prediction, DONE!")
+    preds /= predNum
+    masks = postProcessing(preds, thresh=0.5, minSize=1000, minHole=1000, doReconstruction=False)
+    instanceMap = generateInstanceMap(masks)
+    return instanceMap
