@@ -21,6 +21,7 @@ import h5py
 import warnings
 from models.models import getModel
 
+from utils.ModelCheckpointMGPU import ModelCheckpointMGPU
 warnings.filterwarnings("ignore")
 
 # Setting Parameters
@@ -34,24 +35,16 @@ img_chnls = config.img_chnls
 
 input_shape = (img_rows, img_cols)
 
-modelType = config.modelType #
+modelType = config.modelType
 lossType = config.lossType
 batchSize = config.batchSize
-batchSizeVal = batchSize  # leaave this to 1 anyway
+batchSizeVal = batchSize  
 
 gpus = [x.name for x in K.device_lib.list_local_devices() if x.name[:11] == '/device:GPU']
-multiGPU = config.multiGPU  # NAVID DO THIS!`
+multiGPU = config.multiGPU
 
 
-class ModelCheckpointMGPU(ModelCheckpoint):
-    def __init__(self, original_model, filepath, monitor='val_loss', verbose=0, save_best_only=False,
-                 save_weights_only=False, mode='auto', period=1):
-        self.original_model = original_model
-        super().__init__(filepath, monitor, verbose, save_best_only, save_weights_only, mode, period)
 
-    def on_epoch_end(self, epoch, logs=None):
-        self.model = self.original_model
-        super().on_epoch_end(epoch, logs)
 
 
 
@@ -327,7 +320,10 @@ csv_logger = CSVLogger(modelLogName, append=True, separator='\t')
 model = getModel(modelType, lossType, input_shape)
 model.load_weights(modelSaveName)
 
-model_checkpoint = ModelCheckpoint(filepath=modelSaveName, monitor='val_loss', save_best_only=True)
+if config.multiGPU:
+    model_checkpoint = ModelCheckpointMGPU(model, filepath=modelSaveName, monitor='val_loss', mode='min', save_best_only=True)
+else:
+    model_checkpoint = ModelCheckpoint(filepath=modelSaveName, monitor='val_loss', save_best_only=True)
 
 print('-' * 30)
 print('Fitting model...')
