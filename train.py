@@ -58,7 +58,8 @@ class ModelCheckpointMGPU(ModelCheckpoint):
 print('-' * 30)
 print('Loading training data...')
 print('-' * 30)
-if config.application=='nucleus':
+
+if config.application=='Nucleus':
     imgs, masks, JaccWeights, bceWeights, pointNucs, pointOthers, imgNames = load_data_single('D:/Nuclick project/Data/nuclick_data/Train/')
     #for i in range(len(pointNucs)):
     #    pointNucs[i,] = binary_dilation(pointNucs[i,],np.ones((3,3)))
@@ -74,7 +75,7 @@ if config.application=='nucleus':
     del pointOthers
     print('Train data loading is done.')
 
-if config.application=='cell':
+if config.application=='Cell':
     imgs, masks, JaccWeights, bceWeights, pointNucs, pointOthers, imgNames = load_data_single(
         'E:/Nuclick project_Hemato/Data/nuclick_data/Train/')
     # for i in range(len(pointNucs)):
@@ -92,7 +93,7 @@ if config.application=='cell':
     del pointNucs
     del pointOthers
 
-if config.application=='gland':
+if config.application=='Gland':
     imgs, masks, JaccWeights, bceWeights, pointNucs, pointOthers, imgNames, imgNumbers = load_data_single(
         'E:/Nuclick project_Gland/Data/train/')
     JaccWeights = JaccWeights[..., np.newaxis]  # margins = margins.astype('float32')
