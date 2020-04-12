@@ -18,12 +18,10 @@ import threading
 import warnings
 import multiprocessing.pool
 from functools import partial
-from scipy.ndimage.morphology import distance_transform_edt
 from albumentations import (HueSaturationValue, RandomBrightness, RandomContrast, CLAHE, RandomGamma, 
                             GaussianBlur, IAASharpen, IAAEmboss, GaussNoise, OneOf, Compose,ToGray)
 from keras import backend as K
 from keras.utils.data_utils import Sequence
-from skimage.morphology import skeletonize_3d
 from utils.guidingSignals import generateGuidingSignal, jitterClicks
 
 try:
