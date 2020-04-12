@@ -74,7 +74,7 @@ if not config.valid_data_path==None:
     print('Test data loading is done.')
 
 
-
+# Defining train/validation image generators and their argumants
 train_gen_args = dict(
     RandomizeGuidingSignalType = config.guidingSignalType,
     width_shift_range=0.1,
@@ -91,139 +91,38 @@ train_gen_args = dict(
 image_datagen = ImageDataGenerator(**train_gen_args)
 image_datagen_val = ImageDataGenerator(rescale=1./255)
     
-modelBaseName = 'nuclickNuclei_%s_%s' % (modelType, lossType)
-if not os.path.exists(modelBaseName):
-    os.mkdir(modelBaseName)
-train_generator = image_datagen.flow(
-    imgs, weightMap=dists, mask1=masks,
-    shuffle=True,
-    batch_size=batchSize,
-    color_mode='rgb',  # rgbhsvl
-    seed=seeddd)
-val_generator = image_datagen_val.flow(
-    imgs_test, weightMap=dists_test, mask1=masks_test,
-    shuffle=False,
-    batch_size=batchSizeVal,
-    color_mode='rgb',
-    seed=seeddd)
-
-if config.application=='cell':
-    # Initiating data generators
-    train_gen_args = dict(
-        random_click_perturb='Train',
-        #    width_shift_range=0.1,
-        #    height_shift_range=0.1,
-        horizontal_flip=True,
-        vertical_flip=True,
-        rotation_range=20.,
-        zoom_range=(.7, 1.3),  # (0.7, 1.3),
-        shear_range=.1,
-        fill_mode='constant',  # Applicable to image onlyS
-        albumentation=True,
-        #    channel_shift_range=False,  # This must be in range of 255?
-        #    contrast_adjustment=False,  #####MOSI
-        #    illumination_gradient=False,
-        #    intensity_scale_range=0.,  #####MOSI
-        #    sharpness_adjustment=False,
-        #    apply_noise=False,
-        #    elastic_deformation=False,
-        rescale=1. / 255
-    )
-
-    image_datagen = ImageDataGenerator(**train_gen_args
-                                       )
-
-    image_datagen_val = ImageDataGenerator(random_click_perturb='Train',
-                                           rescale=1. / 255)
-
-    '''
-    Cross-Validation::: Loop over the different folds and perform train on them.
-    Save the best model which has best performance on validation set in each fold.
-    '''
-    modelBaseName = 'nuclickHemato_%s_%s' % (modelType, lossType)
-    if not os.path.exists(modelBaseName):
-        os.mkdir(modelBaseName)
-
-    train_generator = image_datagen.flow(
-        imgs, weightMap=dists, mask1=masks,
-        shuffle=True,
-        batch_size=batchSize,
-        color_mode='rgb',  # rgbhsvl
-        seed=seeddd)
-    val_generator = image_datagen_val.flow(
-        imgs_test, weightMap=dists_test, mask1=masks_test,
-        shuffle=False,
-        batch_size=batchSizeVal,
-        color_mode='rgb',
-        seed=seeddd)
-
-if config.application=='gland':
-    # Initiating data generators
-    pointMapT = 'Skeleton'
-    train_gen_args = dict(
-        random_click_perturb='Skeleton',
-        pointMapType=pointMapT,
-        #    width_shift_range=0.1,
-        #    height_shift_range=0.1,
-        horizontal_flip=True,
-        vertical_flip=True,
-        rotation_range=20.,
-        zoom_range=(.5, 1.5),  # (0.7, 1.3),T
-        shear_range=.2,
-        fill_mode='constant',  # Applicable to image onlyS
-        albumentation=True,
-        #    channel_shift_range=False,  # This must be in range of 255?
-        #    contrast_adjustment=False,  #####MOSI
-        #    illumination_gradient=False,
-        #    intensity_scale_range=0.,  #####MOSI
-        #    sharpness_adjustment=False,
-        #    apply_noise=False,
-        #    elastic_deformation=True,
-        rescale=1. / 255
-    )
-
-    image_datagen = ImageDataGenerator(**train_gen_args
-                                       )
-
-    image_datagen_val = ImageDataGenerator(random_click_perturb='SkeletonValid', pointMapType=pointMapT,
-                                           rescale=1. / 255)
-
-    '''
-    Cross-Validation::: Loop over the different folds and perform train on them.
-    Save the best model which has best performance on validation set in each fold.
-    '''
-    modelBaseName = 'nuclickGland_%s_%s_%s' % (pointMapT, modelType, lossType)
-    if not os.path.exists(modelBaseName):
-        os.mkdir(modelBaseName)
-
-    train_generator = image_datagen.flow(
-        imgs, weightMap=dists, mask1=masks,
-        shuffle=True,
-        batch_size=batchSize,
-        color_mode='rgb',  # rgbhsvl
-        seed=seeddd)
-    val_generator = image_datagen_val.flow(
-        imgs_test, weightMap=dists_test, mask1=masks_test,
-        shuffle=False,
-        batch_size=batchSizeVal,
-        color_mode='rgb',
-        seed=seeddd)
-
-num_train = imgs.shape[0]  # 0
-num_val = imgs_test.shape[0]  # 0
+if not config.valid_data_path==None:
+    num_train = imgs.shape[0]  # 0
+    num_val = imgs_test.shape[0]
+    train_generator = image_datagen.flow( imgs, weightMap=guidingSignals, mask=masks,
+        shuffle=True, batch_size=batchSize, color_mode='rgb', seed=seeddd)
+    val_generator = image_datagen_val.flow(imgs_test, weightMap=guidingSignals_test, mask=masks_test,
+        shuffle=False, batch_size=batchSizeVal, color_mode='rgb', seed=seeddd)
+else:
+    num_train = np.round((1-config.valPrec)*imgs.shape[0])
+    num_val = imgs.shape[0]-num_train
+    train_generator = image_datagen.flow(imgs[:num_train,], weightMap=guidingSignals[:num_train,], mask=masks[:num_train,],
+        shuffle=True, batch_size=batchSize, color_mode='rgb', seed=seeddd)
+    val_generator = image_datagen_val.flow(imgs[num_train:,], weightMap=guidingSignals[num_train:,], mask=masks[num_train:,],
+        shuffle=False, batch_size=batchSizeVal, color_mode='rgb', seed=seeddd)
 
 print('-' * 30)
 print('Creating and compiling model...')
 print('-' * 30)
+# defining names and adresses
+modelBaseName = 'NuClick_%s_%s_%s' % (config.application, modelType, lossType)
+if not os.path.exists(os.path.join(config.weights_path,modelBaseName)):
+    os.mkdir(os.path.join(config.weights_path,modelBaseName))
 modelName = "%s" % (modelBaseName)
-modelSaveName = "./%s/weights-%s.h5" % (modelBaseName, modelName)
-modelLogName = "./%s/Log-%s.log" % (modelBaseName, modelName)
-logDir = "./%s/log" % (modelBaseName)
+modelSaveName = "./%s/%s/weights-%s.h5" % (config.weights_path, modelBaseName, modelName)
+modelLogName = "./%s/%s/Log-%s.log" % (config.weights_path, modelBaseName, modelName)
 csv_logger = CSVLogger(modelLogName, append=True, separator='\t')
 
+# creating model instance
 model = getModel(modelType, lossType, input_shape)
-model.load_weights(modelSaveName)
-
+if config.resumeTraining:
+    model.load_weights(modelSaveName)
+    
 if config.multiGPU:
     model_checkpoint = ModelCheckpointMGPU(model, filepath=modelSaveName, monitor='val_loss', mode='min', save_best_only=True)
 else:
@@ -232,12 +131,14 @@ else:
 print('-' * 30)
 print('Fitting model...')
 print('-' * 30)
-
-history = model.fit_generator(train_generator, steps_per_epoch=num_train // batchSize, nb_epoch=150,
-                              validation_data=val_generator,
-                              validation_steps=num_val // batchSizeVal, callbacks=[model_checkpoint, csv_logger],
-                              max_queue_size=64, workers=8)
+history = model.fit_generator(train_generator, steps_per_epoch=num_train//batchSize, nb_epoch=5,
+                              validation_data=val_generator, validation_steps=num_val//batchSizeVal, 
+                              callbacks=[model_checkpoint, csv_logger], max_queue_size=64, workers=8)
+history = model.fit_generator(train_generator, steps_per_epoch=num_train//batchSize, nb_epoch=150,
+                              validation_data=val_generator, validation_steps=num_val//batchSizeVal, 
+                              callbacks=[model_checkpoint, csv_logger], max_queue_size=64, workers=8)
 
 print('*' * 90)
 print('Done')
 print('*' * 90)
+
