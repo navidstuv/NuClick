@@ -25,4 +25,6 @@ class DefaultConfigs(object):
     train_data_path = 'F:/Nuclick project_Hemato/Data/nuclick_data/train/' 
     valid_data_path = None
 
+
+
 config = DefaultConfigs()
