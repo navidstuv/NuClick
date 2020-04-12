@@ -21,10 +21,17 @@ testTimeAug = True
 def main():
 
 
+
     modelType = config.modelType #['MultiScaleResUnet']
     lossType = config.lossType
     # loading models
     model = getModel(modelType, lossType, (bb, bb))
+
+    modelNames = config.modelType #['MultiScaleResUnet']
+    losses = ['bce_dice']
+    # loading models
+    model = getModel(modelNames, losses, (bb, bb))
+
     model.load_weights(config.weight_path)
     ##Reading images
     path = "E:/Nuclick project/Data/test"
