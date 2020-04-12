@@ -74,46 +74,38 @@ if not config.valid_data_path==None:
     print('Test data loading is done.')
 
 
-if config.application=='nucleus':
-    # Initiating data generators
-    train_gen_args = dict(
-        random_click_perturb = 'Train',
-    #    width_shift_range=0.1,
-    #    height_shift_range=0.1,
-        horizontal_flip=True,
-        vertical_flip=True,
-        rotation_range=20,
-        zoom_range=(.6, 1.4),  # (0.7, 1.3),
-        shear_range=.1,
-        fill_mode='constant',  # Applicable to image onlyS
-        albumentation=True,
-    #    channel_shift_range=False,
-    #    contrast_adjustment=False,
-    #    illumination_gradient=False,○
-    #    intensity_scale_range=0.,
-    #    sharpness_adjustment=False,
-    #    apply_noise=False,
-    #    elastic_deformation=False,
-        rescale=1. / 255
-    )
-    image_datagen = ImageDataGenerator(**train_gen_args)
-    image_datagen_val = ImageDataGenerator(random_click_perturb = 'Train',
-        rescale=1. / 255)
-    modelBaseName = 'nuclickNuclei_%s_%s' % (modelType, lossType)
-    if not os.path.exists(modelBaseName):
-        os.mkdir(modelBaseName)
-    train_generator = image_datagen.flow(
-        imgs, weightMap=dists, mask1=masks,
-        shuffle=True,
-        batch_size=batchSize,
-        color_mode='rgb',  # rgbhsvl
-        seed=seeddd)
-    val_generator = image_datagen_val.flow(
-        imgs_test, weightMap=dists_test, mask1=masks_test,
-        shuffle=False,
-        batch_size=batchSizeVal,
-        color_mode='rgb',
-        seed=seeddd)
+
+train_gen_args = dict(
+    RandomizeGuidingSignalType = config.guidingSignalType,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+    horizontal_flip=True,
+    vertical_flip=True,
+    rotation_range=20,
+    zoom_range=(.5, 1.5) if config.application=='Gland' else (.7, 1.3),  
+    shear_range=0.2 if config.application=='Gland' else 0.1,  
+    fill_mode='constant',  # Applicable to image onlyS
+    albumentation=True,
+    rescale=1. / 255
+)
+image_datagen = ImageDataGenerator(**train_gen_args)
+image_datagen_val = ImageDataGenerator(rescale=1./255)
+    
+modelBaseName = 'nuclickNuclei_%s_%s' % (modelType, lossType)
+if not os.path.exists(modelBaseName):
+    os.mkdir(modelBaseName)
+train_generator = image_datagen.flow(
+    imgs, weightMap=dists, mask1=masks,
+    shuffle=True,
+    batch_size=batchSize,
+    color_mode='rgb',  # rgbhsvl
+    seed=seeddd)
+val_generator = image_datagen_val.flow(
+    imgs_test, weightMap=dists_test, mask1=masks_test,
+    shuffle=False,
+    batch_size=batchSizeVal,
+    color_mode='rgb',
+    seed=seeddd)
 
 if config.application=='cell':
     # Initiating data generators
