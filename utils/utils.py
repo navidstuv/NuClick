@@ -9,7 +9,7 @@ from skimage.morphology import remove_small_objects, remove_small_holes, reconst
 import numpy as np
 from skimage.io import imsave, imread
 import os
-from image_segmentation import ImageDataGenerator
+from data_handler.customImageGenerator import ImageDataGenerator
 import pandas as pd
 
 bb = 256
@@ -273,7 +273,7 @@ def readImageAndGetSignals(currdir=os.getcwd()):
     return img, signal, imgPath
 
 
-def predictSingleImage(models, img, markups):
+def predictSingleImage(model, img, markups):
     patchs, includeMap, excludeMap = getPatchs(img, markups)
     # patchs, nucPoints, otherPoints = getPatchs(img, clickMap, boundingBoxes, cx, cy, m, n)
     dists = np.float32(np.concatenate((includeMap, excludeMap, excludeMap), axis=3))  # the last one is only dummy!
@@ -291,22 +291,20 @@ def predictSingleImage(models, img, markups):
 
             # prediction with model ensambling and test time augmentation
     preds = np.zeros(patchs.shape[:3], dtype=np.float32)
-    for i in range(len(models)):
-        #        print('-----Working on model := %s_%s%s-----' % (modelNames[i], losses[i],suffixes[i]))
-        model = models[i]
-        preds += predictPatchs(model, patchs, dists)
+
+    preds += predictPatchs(model, patchs, dists)
+    predNum += 1
+    #        print("Original images prediction, DONE!")
+    if testTimeAug:
+        #            print("Test Time Augmentation Started")
+        temp = predictPatchs(model, patchs_shappened[:, :, ::-1], dists[:, :, ::-1])
+        preds += temp[:, :, ::-1]
         predNum += 1
-        #        print("Original images prediction, DONE!")
-        if testTimeAug:
-            #            print("Test Time Augmentation Started")
-            temp = predictPatchs(model, patchs_shappened[:, :, ::-1], dists[:, :, ::-1])
-            preds += temp[:, :, ::-1]
-            predNum += 1
-            #            print("Sharpenned images prediction, DONE!")
-            temp = predictPatchs(model, patchs_contrasted[:, ::-1, ::-1], dists[:, ::-1, ::-1])
-            preds += temp[:, ::-1, ::-1]
-            predNum += 1
-    #            print("Contrasted images prediction, DONE!")
+        #            print("Sharpenned images prediction, DONE!")
+        temp = predictPatchs(model, patchs_contrasted[:, ::-1, ::-1], dists[:, ::-1, ::-1])
+        preds += temp[:, ::-1, ::-1]
+        predNum += 1
+#            print("Contrasted images prediction, DONE!")
     preds /= predNum
     masks = postProcessing(preds, thresh=0.5, minSize=1000, minHole=1000, doReconstruction=False)
     instanceMap = generateInstanceMap(masks)

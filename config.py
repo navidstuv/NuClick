@@ -25,6 +25,8 @@ class DefaultConfigs(object):
     train_data_path = 'F:/Nuclick project_Hemato/Data/nuclick_data/train/' 
     valid_data_path = None
 
+    weight_path = 'Nuclick_Nuclei/nuclickNuclei_MultiScaleResUnet_bce_dice/weights-nuclickNuclei_MultiScaleResUnet_bce_dice.h5'
+
 
 
 config = DefaultConfigs()
