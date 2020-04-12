@@ -210,9 +210,9 @@ def get_MultiScale_ResUnet (input_shape, lossType):
         conv10 = Conv2D(1, (1, 1), activation='sigmoid')(conv9)
     
         model = Model(inputs=[img, auxInput], outputs=[conv10])
-    
-        model = multi_gpu_model(model , 2)
-        model.compile(optimizer=Adam(lr=learningRate), loss=getLoss(lossType, weightMap=weights), metrics=[dice_coef]) # adding the momentum
+            # model.compile(optimizer=Adam(lr=learningRate), loss=getLoss(lossType, weightMap=weights), metrics=[dice_coef]) # adding the momentum
+        model.compile(optimizer=Adam(lr=learningRate), loss='categorical_crossentropy', metrics=[dice_coef]) # adding the momentum
+
     
         return model
             

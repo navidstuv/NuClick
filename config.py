@@ -39,4 +39,8 @@ class DefaultConfigs(object):
     if valid_data_path is None:
         valPrec = 0.2 # if no validation folder specified, this part of training set would be used for validation
 
+    weight_path = 'Nuclick_Nuclei/nuclickNuclei_MultiScaleResUnet_bce_dice/weights-nuclickNuclei_MultiScaleResUnet_bce_dice.h5'
+
+
+
 config = DefaultConfigs()

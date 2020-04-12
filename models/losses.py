@@ -32,20 +32,18 @@ def complex_loss_bceWeighted(y_true, y_pred,weights): #'''*** dice_loss can be r
     return cmplxLoss
     
 def getLoss(loss_name, weightMap=None, a=1., b=1.):
+
     if loss_name == 'bce_dice':
         def loss(y, p):
             return dice_coef_loss_bce(y, p, dice=0.5, bce=0.5)
         return loss
-    
     elif loss_name == 'dice':
         def loss(y,p):
             return dice_coef_loss(y,p,a=a,b=b)
         return loss
-		
-    elif loss_name in {'complex_loss_bceWeighted','complexBCEweighted'}:
-        def loss(y,p):
+    elif loss_name in ['complex_loss_bceWeighted','complexBCEweighted']:
+        def loss(y, p):
             return complex_loss_bceWeighted(y,p,weightMap)
         return loss
-		
     else:
         ValueError("Unknown loss.")
