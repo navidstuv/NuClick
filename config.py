@@ -39,4 +39,6 @@ class DefaultConfigs(object):
     if valid_data_path is None:
         valPrec = 0.2 # if no validation folder specified, this part of training set would be used for validation
 
+    testTimeAug = True
+    
 config = DefaultConfigs()

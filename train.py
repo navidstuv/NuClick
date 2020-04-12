@@ -88,8 +88,7 @@ train_gen_args = dict(
     shear_range=0.2 if config.application=='Gland' else 0.1,  
     fill_mode='constant',  # Applicable to image onlyS
     albumentation=True,
-    rescale=1. / 255
-)
+    rescale=1. / 255)
 image_datagen = ImageDataGenerator(**train_gen_args)
 image_datagen_val = ImageDataGenerator(rescale=1./255)
     
