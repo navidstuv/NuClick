@@ -18,21 +18,13 @@ import threading
 import warnings
 import multiprocessing.pool
 from functools import partial
-from skimage import exposure
-from skimage.filters import gaussian
-from skimage.util import random_noise
 from scipy.ndimage.morphology import distance_transform_edt
-from skimage.transform import PiecewiseAffineTransform, warp
 from albumentations import (HueSaturationValue, RandomBrightness, RandomContrast, CLAHE, RandomGamma, 
                             GaussianBlur, IAASharpen, IAAEmboss, GaussNoise, OneOf, Compose,ToGray)
-
 from keras import backend as K
 from keras.utils.data_utils import Sequence
-from skimage.measure import regionprops, find_contours, moments
-from skimage.measure import label as bwlabel
-from skimage.morphology import binary_dilation, convex_hull_image, skeletonize_3d,skeletonize
-from skimage.draw import polygon,polygon_perimeter, circle
-import matplotlib.pyplot as plt
+from skimage.morphology import skeletonize_3d
+from utils.guidingSignals import generateGuidingSignal, jitterClicks
 
 try:
     from PIL import Image as pil_image
@@ -538,10 +530,10 @@ class ImageDataGenerator(object):
                              'a tuple or list of two floats. '
                              'Received arg: ', zoom_range)
 
-    def flow(self, x, weightMap=None, mask1=None, mask2=None, y=None, h=None, batch_size=32, shuffle=True, seed=None,color_mode='rgb',
+    def flow(self, x, weightMap=None, mask=None, y=None, batch_size=32, shuffle=True, seed=None, color_mode='rgb',
              save_to_dir=None, save_prefix='', save_format='png'):
         return NumpyArrayIterator(
-            x, weightMap, mask1, mask2, y, h, self,
+            x, weightMap, mask, y, self,
             batch_size=batch_size,
             color_mode = color_mode,
             shuffle=shuffle,
@@ -618,7 +610,7 @@ class ImageDataGenerator(object):
                               'first by calling `.fit(numpy_data)`.')
         return x
 
-    def random_transform(self, x,weightMap,mask1,mask2,hm, seed=None):
+    def random_transform(self, x, weightMap, mask, seed=None):
         """Randomly augment a single image tensor.
 
         # Arguments
@@ -696,9 +688,7 @@ class ImageDataGenerator(object):
             transform_matrix = transform_matrix_offset_center(transform_matrix, h, w)
             x = apply_transform(x, transform_matrix, img_channel_axis,
                                 fill_mode=self.fill_mode, cval=self.cval, transOrder=1)
-            mask1 = apply_transform(mask1, transform_matrix, img_channel_axis,
-                                fill_mode="constant", cval=0, transOrder=0)
-            mask2 = apply_transform(mask2, transform_matrix, img_channel_axis,
+            mask = apply_transform(mask, transform_matrix, img_channel_axis,
                                 fill_mode="constant", cval=0, transOrder=0)
             weightMap = apply_transform(weightMap, transform_matrix, img_channel_axis,
                                 fill_mode="constant", cval=0.) ### MOSSSIIII ### THIS VALUE MUST HANDEDLED BASED ON THE WEIGHT GENERATION FILE IN MATLAB
@@ -706,82 +696,25 @@ class ImageDataGenerator(object):
         if self.horizontal_flip:
             if np.random.random() < 0.5:
                 x = flip_axis(x, img_col_axis)
-                mask1 = flip_axis(mask1, img_col_axis)
-                mask2 = flip_axis(mask2, img_col_axis)
+                mask = flip_axis(mask, img_col_axis)
                 weightMap = flip_axis(weightMap, img_col_axis)
 
         if self.vertical_flip:
             if np.random.random() < 0.5:
                 x = flip_axis(x, img_row_axis)
-                mask1 = flip_axis(mask1, img_row_axis)
-                mask2 = flip_axis(mask2, img_row_axis)
+                mask = flip_axis(mask, img_row_axis)
                 weightMap = flip_axis(weightMap, img_row_axis)
 
 # Randomly generating the Guiding signals for Nuclick Train/Test
-        if self.RandomizeGuidingSignalType == 'Point':
-            binaryMask = np.uint8(mask1[:,:,0]>=(0.99*np.max(mask1[:,:,0])))
-            temp = distance_transform_edt(binaryMask)
-            tempMean = ndi.mean(temp, labels=binaryMask)
-            tempStd = ndi.standard_deviation(temp, labels=binaryMask)
-            tempThresh = np.random.uniform(tempMean-tempStd, tempMean+tempStd)
-            tempThresh = np.max([tempThresh,0])
-            tempThresh = np.min([tempThresh,np.max(temp)-1])
-            newMask = np.float32(temp>tempThresh)
-            if np.sum(newMask)==0:
-                newMask = np.float32(temp>(tempMean/2))
-            if np.sum(newMask)==0:
-                newMask = np.float32(binaryMask)
-            indices = np.argwhere(newMask==1) #
-            if len(indices)>=2:
-                rndIdx = np.random.randint(np.floor(0.05*len(indices)),np.floor(0.95*len(indices)))
-                rndX = indices[rndIdx,1]
-                rndY = indices[rndIdx,0]
-                pointMask = np.zeros_like(mask1)   
-                pointMask[rndY,rndX,0] = 1
-                weightMap[:,:,0:1] = pointMask[:,:,0:1]
-            elif len(indices)==1:
-                rndIdx = 0
-                rndX = indices[rndIdx,1]
-                rndY = indices[rndIdx,0]
-                pointMask = np.zeros_like(mask1)   
-                pointMask[rndY,rndX,0] = 1
-                weightMap[:,:,0:1] = pointMask[:,:,0:1]   
+        if not self.RandomizeGuidingSignalType == None:
+            guidingSignal = generateGuidingSignal(mask, self.RandomizeGuidingSignalType)
+            weightMap[:,:,0:1] = guidingSignal[:,:,0:1]   
                 
-        if self.RandomizeGuidingSignalType == 'Skeleton':
-            binaryMask = np.uint8(mask1[:,:,0]>(0.9*np.max(mask1[:,:,0])))
-            if np.sum(binaryMask)>100:
-                temp = distance_transform_edt(binaryMask)
-                tempMean = ndi.mean(temp, labels=binaryMask)
-                tempStd = ndi.standard_deviation(temp, labels=binaryMask)
-                tempThresh = np.random.uniform(tempMean-tempStd, tempMean+tempStd)
-                if tempThresh<0:
-                    tempThresh = np.random.uniform(tempMean/2, tempMean+tempStd/2)
-                newMask = temp>(tempThresh)
-                if np.sum(newMask)==0:
-                    newMask = temp>(tempThresh/2)
-                if np.sum(newMask)==0:
-                    newMask = binaryMask
-                skel = skeletonize_3d(newMask)
-                skel = skel[...,np.newaxis]
-                skel = np.float32(skel)
-            else:
-                skel = np.zeros(binaryMask.shape+(1,),dtype='float32')
-            weightMap[:,:,0:1] = skel[:,:,0:1]
-                        
         if self.RandomizeGuidingSignalType == 'PointJiterring':
-            pointPos = np.argwhere(weightMap[:,:,0]>0)
-            if len(pointPos)>0:
-                xPos = pointPos[0,1] + np.random.randint(-3,3)
-                xPos = np.min([xPos,mask1.shape[1]-1])
-                xPos = np.max([xPos,0])
-                yPos = pointPos[0,0] + np.random.randint(-3,3)
-                yPos = np.min([yPos,mask1.shape[0]-1])
-                yPos = np.max([yPos,0])
-                pointMask = np.zeros_like(mask1)
-                pointMask[yPos,xPos,0] = 1
-                weightMap[:,:,0:1] = pointMask[:,:,0:1]  
+            guidingSignal = jitterClicks (weightMap)
+            weightMap[:,:,0:1] = guidingSignal[:,:,0:1]  
 
-        return x, weightMap, mask1, mask2
+        return x, weightMap, mask
 
     def fit(self, x,
             augment=False,
@@ -963,7 +896,7 @@ class NumpyArrayIterator(Iterator):
             (if `save_to_dir` is set).
     """
 
-    def __init__(self, x, weightMap, mask1, mask2, y, h, image_data_generator,
+    def __init__(self, x, weightMap, mask, y, image_data_generator,
                  batch_size=32, shuffle=False, seed=None,
                  data_format=None, color_mode='rgb',
                  save_to_dir=None, save_prefix='', save_format='png'):
@@ -977,10 +910,8 @@ class NumpyArrayIterator(Iterator):
             data_format = K.image_data_format()
         self.x = np.asarray(x, dtype=K.floatx())
         self.weightMap=np.asarray(weightMap,dtype=K.floatx()) if weightMap is not None else None
-        self.mask1=np.asarray(mask1,dtype=K.floatx()) if mask1 is not None else None
-        self.mask2=np.asarray(mask2,dtype=K.floatx()) if mask2 is not None else None
+        self.mask=np.asarray(mask,dtype=K.floatx()) if mask is not None else None
         self.y=np.asarray(y,dtype=K.floatx()) if y is not None else None
-        self.h=np.asarray(h,dtype=K.floatx()) if h is not None else None
 
         if self.x.ndim != 4:
             raise ValueError('Input data in `NumpyArrayIterator` '
@@ -1031,19 +962,15 @@ class NumpyArrayIterator(Iterator):
     def _get_batches_of_transformed_samples(self, index_array):
         batch_x = np.zeros((len(index_array),) + self.image_shape, dtype=K.floatx()) #np.zeros(tuple([len(index_array)] + list(self.x.shape)[1:]), dtype=K.floatx())
         batch_weightMap = np.zeros((len(index_array),) + self.dist_shape, dtype=K.floatx()) #np.zeros(tuple([len(index_array)] + list(self.x.shape)[1:]), dtype=K.floatx())
-        batch_mask1 = np.zeros((len(index_array),) + self.mask_shape, dtype=K.floatx()) #np.zeros(tuple([len(index_array)] + list(self.x.shape)[1:]), dtype=K.floatx())
-        batch_mask2 = np.zeros((len(index_array),) + self.mask_shape, dtype=K.floatx()) #np.zeros(tuple([len(index_array)] + list(self.x.shape)[1:]), dtype=K.floatx())
+        batch_mask = np.zeros((len(index_array),) + self.mask_shape, dtype=K.floatx()) #np.zeros(tuple([len(index_array)] + list(self.x.shape)[1:]), dtype=K.floatx())
         for i, j in enumerate(index_array):
             x = self.x[j]
-            mask1 = self.mask1[j] if self.mask1 is not None else np.zeros(shape=self.mask_shape)
+            mask = self.mask[j] if self.mask is not None else np.zeros(shape=self.mask_shape)
             weightMap = self.weightMap[j] if self.weightMap is not None else np.zeros(shape=self.dist_shape)
-            mask2 = self.mask2[j] if self.mask2 is not None else np.zeros_like(mask1)
-            h = self.h if self.h is not None else np.zeros_like(mask1)
-            x,weightMap,mask1,mask2 = self.image_data_generator.random_transform(x.astype(K.floatx()),weightMap.astype(K.floatx()),mask1.astype(K.floatx()),mask2.astype(K.floatx()),h)
+            x,weightMap,mask = self.image_data_generator.random_transform(x.astype(K.floatx()),weightMap.astype(K.floatx()),mask.astype(K.floatx()))
             x = self.image_data_generator.standardize(x)
             batch_x[i] = x
-            batch_mask1[i] = mask1
-            batch_mask2[i] = mask2
+            batch_mask[i] = mask
             batch_weightMap[i] = weightMap
         if self.save_to_dir:
             for i, j in enumerate(index_array):
@@ -1053,15 +980,12 @@ class NumpyArrayIterator(Iterator):
                                                                   hash=np.random.randint(1e4),
                                                                   format=self.save_format)
                 img.save(os.path.join(self.save_to_dir, fname))
-        if self.mask1 is not None:
-            if self.weightMap is None and self.mask2 is not None:
-                return batch_x, [batch_mask1, batch_mask2]
-            elif self.weightMap is None and self.mask2 is None:
-                return batch_x, batch_mask1
-            elif self.weightMap is not None and self.mask2 is None:
-                return [batch_x, batch_weightMap], batch_mask1#batch_mask1
+        if self.mask is not None:
+            if self.weightMap is None:
+                return batch_x, batch_mask
             else:
-                return [batch_x, batch_weightMap], [batch_mask1, batch_mask2]
+                return [batch_x, batch_weightMap], batch_mask#batch_mask
+
         else:
             if self.weightMap is not None:
                 return [batch_x, batch_weightMap]
