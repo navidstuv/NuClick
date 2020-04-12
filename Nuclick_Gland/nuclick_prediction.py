@@ -3,7 +3,7 @@ from skimage.io import imsave
 import pandas as pd
 import os, glob
 import matplotlib.pyplot as plt
-from image_segmentation_singleDist_v2 import ImageDataGenerator
+from data_handler.customImageGenerator import ImageDataGenerator
 from keras.models import Model
 from skimage.morphology import remove_small_objects, remove_small_holes, reconstruction
 from model_factory1 import getModel

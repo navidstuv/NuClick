@@ -1,6 +1,9 @@
 """
-Designed for Gland Segmentation
-In this version: Random number of points is uniformly selected on the mask margin to generate the pointMap
+Type of outpu generation is different for Nucleus, Cell, and Gland options
+Based on Keras imageGenerator
+albumentation library is added for more augmentatoin techniques
+image, Mask, weigtMap and guidingSignals are appsed to the output
+[onlt numpy array Iterator is working wight now]
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -15,53 +18,16 @@ import threading
 import warnings
 import multiprocessing.pool
 from functools import partial
-from skimage import exposure
-from skimage.filters import gaussian
-from skimage.util import random_noise
-from scipy.ndimage.morphology import distance_transform_edt
-from skimage.transform import PiecewiseAffineTransform, warp
-from albumentations import (RGBShift, HueSaturationValue, RandomBrightness, RandomContrast, CLAHE, RandomGamma, 
-                            GaussianBlur, IAASharpen, IAAEmboss, GaussNoise, JpegCompression, OneOf, Compose,ToGray)
-
+from albumentations import (HueSaturationValue, RandomBrightness, RandomContrast, CLAHE, RandomGamma, 
+                            GaussianBlur, IAASharpen, IAAEmboss, GaussNoise, OneOf, Compose,ToGray)
 from keras import backend as K
 from keras.utils.data_utils import Sequence
-from skimage.measure import regionprops, find_contours
-from skimage.measure import label as bwlabel
-from skimage.morphology import binary_dilation, convex_hull_image, skeletonize
-from skimage.draw import polygon,polygon_perimeter
-import matplotlib.pyplot as plt
+from utils.guidingSignals import generateGuidingSignal, jitterClicks
 
 try:
     from PIL import Image as pil_image
 except ImportError:
     pil_image = None
-    
-def getLargestCC(segmentation):
-    labels = bwlabel(segmentation)
-    largestCC = labels == np.argmax(np.bincount(labels.flat))
-    return largestCC
-
-def random_elastic_field_generator (IMAGE_HIGHT, IMAGE_WIDTH, IMAGE_HIGHTSP=16, IMAGE_WIDTHSP=16, scale = 0.01):
-    src_IMAGE_WIDTH = np.linspace(0, IMAGE_WIDTH, IMAGE_WIDTHSP)
-    src_IMAGE_HIGHT = np.linspace(0, IMAGE_HIGHT, IMAGE_HIGHTSP)
-    src_IMAGE_HIGHT, src_IMAGE_WIDTH = np.meshgrid(src_IMAGE_HIGHT, src_IMAGE_WIDTH)
-    src = np.dstack([src_IMAGE_WIDTH.flat, src_IMAGE_HIGHT.flat])[0]
-    # add random oscillation to row and column coordinates
-    rndDst_IMAGE_HIGHT = np.random.normal(0,scale,src[:, 1].shape)*IMAGE_HIGHT
-    rndDst_IMAGE_WIDTH = np.random.normal(0,scale,src[:, 0].shape)*IMAGE_WIDTH
-    dst_IMAGE_HIGHT = src[:, 1] + rndDst_IMAGE_HIGHT
-    dst_IMAGE_WIDTH = src[:, 0] + rndDst_IMAGE_WIDTH
-    dst = np.vstack([dst_IMAGE_WIDTH, dst_IMAGE_HIGHT]).T
-    tform = PiecewiseAffineTransform()
-    tform.estimate(src, dst)
-    return tform
-
-def _unsharp_mask_single_channel(image, radius, amount):
-    """Single channel implementation of the unsharp masking filter."""
-    blurred = gaussian(image,sigma=radius,mode='reflect')
-    result = image + (image - blurred) * amount
-    result = np.clip(result, 0, 1)
-    return result
 
 if pil_image is not None:
     _PIL_INTERPOLATION_METHODS = {
@@ -210,114 +176,10 @@ def random_zoom(x, zoom_range, row_axis=1, col_axis=2, channel_axis=0,
     x = apply_transform(x, transform_matrix, channel_axis, fill_mode, cval)
     return x
 
-
-def random_channel_shift(x, intensity, channel_axis=0):
-    x = np.rollaxis(x, channel_axis, 0)
-    min_x, max_x = np.min(x), np.max(x)
-    channel_images = [np.clip(x_channel + np.random.uniform(-intensity, intensity), min_x, max_x)
-                      for x_channel in x]
-    x = np.stack(channel_images, axis=0)
-    x = np.rollaxis(x, 0, channel_axis + 1)
-    return x
-
-def random_intensity_scaling(x,scale):
-    x = np.clip(x * np.random.uniform(1.-scale, 1.+scale), 0., 255.)
-    return x
-
-def random_contrast_adjustment(x):
-    if np.random.random() < .5: # Lowering contrast for 75% of times
-        min_x, max_x = np.min(x), np.max(x)
-        if max_x>min_x:
-            low_out = min_x+(np.random.uniform(.1,.3)*max_x)
-            high_out = max_x-(np.random.uniform(.1,.3)*max_x)
-            x = exposure.rescale_intensity(x, in_range=(min_x, max_x), out_range=(low_out, high_out)) 
-#    elif np.random.random() < 0.5:
-#        x = 255. * exposure.equalize_adapthist(x/255., clip_limit=0.005)
-    else: # Enhancing the contrast for the rest.
-        p2, p98 = np.percentile(x, (2, 98)) #####
-        if p2==p98:
-            p2, p98 = np.min(x), np.max(x)
-        if p98>p2:
-            x = exposure.rescale_intensity(x, in_range=(p2, p98), out_range=(0.,255.))
-    return np.clip(x, 0., 255., out=x)
-
-def random_channel_contrast_adjustment(x):
-    if x.shape[2] !=3:
-        return x
-    else:
-        chnlIdx = np.random.randint(0, 2 + 1)
-        p2, p98 = np.percentile(x[:,:,chnlIdx], (2, 98))
-        if p2==p98:
-            p2, p98 = np.min(x), np.max(x)
-        x[:,:,chnlIdx] = 255. * exposure.rescale_intensity(x[:,:,chnlIdx], in_range=(p2, p98))
-    return x
-    
-def random_illumination_gradient(x):
-    if np.random.random()<0.35:
-        centerY = x.shape[0] // 2
-        centerX = x.shape[1] // 2
-        rndY = np.int64(np.random.uniform(centerY-0.1*centerY,centerY+0.1*centerY))
-        rndX = np.int64(np.random.uniform(centerX-0.2*centerX,centerX+0.2*centerX))
-        c = np.zeros((x.shape[0:2]))
-        c[rndY,rndX] = 1
-        c = distance_transform_edt(1-c)
-        c = np.max(c)-c
-        low = np.random.uniform(.4, .6)
-        high = np.random.uniform(1.1, 1.3)
-        c = exposure.rescale_intensity(c, in_range=(np.min(c), np.max(c)), out_range=(low,high))
-        c = c[..., np.newaxis]
-        c = np.repeat(c,3,axis=2)
-#        plt.figure()
-#        plt.imshow(c/np.max(c))     
-    else: # Horizontal llumination gradient
-        low = np.random.uniform(.6, .75)
-        high = np.random.uniform(1.1, 1.2)
-        if np.random.random()<0.75:
-            c = np.linspace(low, high, x.shape[1])[None, :, None]
-            c = np.repeat(c,x.shape[0],axis=0)
-            c = np.repeat(c,3,axis=2)
-            if np.random.random()<0.5:
-                c = flip_axis(c, 1)
-        else:
-            c = np.linspace(low, high, x.shape[0])[:, None, None]
-            c = np.repeat(c,x.shape[1],axis=1)
-            c = np.repeat(c,3,axis=2)
-            if np.random.random()<0.5:
-                c = flip_axis(c, 0)
-    x = np.clip(x * c, 0., 255.)
-    return x
-
-def random_sharpness_adjustment(x):
-    if np.random.random()<0.7: # Bluring the mage for 40% of times
-        sig = np.random.uniform(.5, 1.) # (.8,1.2)
-        x=gaussian(x,sig,multichannel=True,preserve_range=True,mode='reflect')
-        x=np.clip(x, 0., 255.)
-    else: # Sharping the image using unsharp_filtering  !!! ITS MAY BE BETTER TO APPLY SHARPPENING ON v CHANNEL FROM hsv
-        for channel in range(x.shape[-1]):
-            x[..., channel] = 255. * _unsharp_mask_single_channel(x[..., channel]/255., 2, 1)
-    return x
-
-def random_apply_noise(x):
-    noiseType =  np.random.randint(0,3,1)
-    if noiseType==0:
-        x = 255.*random_noise(x/255., mode='speckle', var=np.random.uniform(.001,.004),clip=True)
-    if noiseType==1:
-        x = 255.*random_noise(x/255., mode='gaussian', var=np.random.uniform(.001,.0015),clip=True)
-    if noiseType==2:
-        x = 255.*random_noise(x/255., mode='s&p', amount=np.random.uniform(.005,.02) ,clip=True)
-    return np.clip(x, 0., 255., out=x)
-    
-def random_hair_occlusion(x, h):
-    rndIdx = np.random.randint(0,len(h))
-    thisHairMask = h[rndIdx,]
-    x = x * np.float32(thisHairMask)
-    return x
-
 def albumentation_transform(x):
     x = x.astype(np.uint8)
     aug = Compose([
             OneOf([
-#                RGBShift(r_shift_limit=30, g_shift_limit=30, b_shift_limit=30, p=0.5), #.7
                 HueSaturationValue(hue_shift_limit=0, sat_shift_limit=(-20,20), val_shift_limit=0, always_apply=False, p=.5),#.8
                 HueSaturationValue(hue_shift_limit=30, sat_shift_limit=5, val_shift_limit=0, always_apply=False, p=.5),
                 ],
@@ -336,11 +198,11 @@ def albumentation_transform(x):
                 ], 
                 p=1.),
             OneOf([
-                GaussNoise(var_limit=(5.0, 15.0), p=.3),
-#                JpegCompression(quality_lower=85, quality_upper=95, p=0.4),
+                GaussNoise(var_limit=(5.0, 15.0), p=0.3),
+                ToGray(always_apply=False, p=0.1)
                 ], 
                 p=1),
-        ], p=.75)
+        ], p=.8)
     
     augmented_img = aug(image=x)['image']
     while(np.array_equal(augmented_img,np.zeros(augmented_img.shape)) == True):  #Avoid black images
@@ -594,17 +456,8 @@ class ImageDataGenerator(object):
     """
 
     def __init__(self,
-                 random_click_perturb=None,
-                 pointMapType=None,
+                 RandomizeGuidingSignalType=None,
                  albumentation=False,
-                 elastic_deformation=False,
-                 apply_noise=False,
-                 sharpness_adjustment=False,
-                 hair_occlusion=False,
-                 illumination_gradient=False,#####MOSI
-                 channel_contrast_adjustment=False,#####MOSI
-                 contrast_adjustment=False, #####MOSI
-                 intensity_scale_range = 0.,#####MOSI
                  featurewise_center=False,
                  samplewise_center=False,
                  featurewise_std_normalization=False,
@@ -627,17 +480,8 @@ class ImageDataGenerator(object):
         if data_format is None:
             data_format = K.image_data_format()
         
-        self.random_click_perturb = random_click_perturb
-        self.pointMapType = pointMapType
+        self.RandomizeGuidingSignalType = RandomizeGuidingSignalType
         self.albumentation = albumentation
-        self.elastic_deformation = elastic_deformation
-        self.apply_noise = apply_noise
-        self.sharpness_adjustment = sharpness_adjustment
-        self.hair_occlusion = hair_occlusion
-        self.illumination_gradient = illumination_gradient
-        self.channel_contrast_adjustment = channel_contrast_adjustment
-        self.contrast_adjustment = contrast_adjustment
-        self.intensity_scale_range = intensity_scale_range
         self.featurewise_center = featurewise_center
         self.samplewise_center = samplewise_center
         self.featurewise_std_normalization = featurewise_std_normalization
@@ -684,10 +528,10 @@ class ImageDataGenerator(object):
                              'a tuple or list of two floats. '
                              'Received arg: ', zoom_range)
 
-    def flow(self, x, weightMap=None, mask1=None, mask2=None, y=None, h=None, batch_size=32, shuffle=True, seed=None,color_mode='rgb',
+    def flow(self, x, weightMap=None, mask=None, y=None, batch_size=32, shuffle=True, seed=None, color_mode='rgb',
              save_to_dir=None, save_prefix='', save_format='png'):
         return NumpyArrayIterator(
-            x, weightMap, mask1, mask2, y, h, self,
+            x, weightMap, mask, y, self,
             batch_size=batch_size,
             color_mode = color_mode,
             shuffle=shuffle,
@@ -764,7 +608,7 @@ class ImageDataGenerator(object):
                               'first by calling `.fit(numpy_data)`.')
         return x
 
-    def random_transform(self, x,weightMap,mask1,mask2,hm, seed=None):
+    def random_transform(self, x, weightMap, mask, seed=None):
         """Randomly augment a single image tensor.
 
         # Arguments
@@ -780,66 +624,11 @@ class ImageDataGenerator(object):
         img_channel_axis = self.channel_axis - 1
 
         if seed is not None:
-            np.random.seed(seed)
-        
-        
-        isDeformed = False
-        if self.elastic_deformation:
-            if np.random.random() < .5:
-                isDeformed=True
-                tScale = 0.015
-                hstp = 5
-                wstp = 8
-                IMAGE_HIGHT, IMAGE_WIDTH = x.shape[0], x.shape[1]
-                tform = random_elastic_field_generator (IMAGE_HIGHT, IMAGE_WIDTH, IMAGE_HIGHTSP=hstp, IMAGE_WIDTHSP=wstp, scale = tScale)
-                x = warp(x, tform, output_shape=(IMAGE_HIGHT, IMAGE_WIDTH),preserve_range=True)
-                if len(np.unique(weightMap))>1:
-                    weightMap = warp(weightMap, tform, output_shape=(IMAGE_HIGHT, IMAGE_WIDTH),preserve_range=True,order=0)
-                if len(np.unique(mask1))>1:
-                    mask1 = warp(mask1, tform, output_shape=(IMAGE_HIGHT, IMAGE_WIDTH),preserve_range=True,order=0) 
-                if len(np.unique(mask2))>1:
-                    mask2 = warp(mask2, tform, output_shape=(IMAGE_HIGHT, IMAGE_WIDTH),preserve_range=True,order=0) 
-
-        if self.hair_occlusion and hm is not None:
-            if np.random.random() < 0.5:
-                x = random_hair_occlusion(x, hm)    
-                
-        illuminated = False
-        if self.illumination_gradient:
-            if np.random.random() < 0.5:
-                x = random_illumination_gradient(x)
-                illuminated = True
+            np.random.seed(seed)     
         
         if self.albumentation:
             x = albumentation_transform(x)
-            
-        if self.sharpness_adjustment and not self.albumentation:
-            if np.random.random() < 0.5:
-                x = random_sharpness_adjustment(x)
-                
-    
-        if self.apply_noise  and not self.albumentation:
-            if np.random.random() < 0.5:
-                x = random_apply_noise(x)
-        
-        channelShifted = False
-        if self.channel_shift_range != 0  and not self.albumentation:
-            if np.random.random() < 0.5:
-                x = random_channel_shift(x,
-                                         self.channel_shift_range,
-                                         img_channel_axis)
-                channelShifted = True
-        
-        if self.channel_contrast_adjustment and not channelShifted  and not self.albumentation:
-            if np.random.random() < 0.5:
-                x = random_channel_contrast_adjustment(x)
-         
-        contrasted = False
-        if self.contrast_adjustment  and not self.albumentation: #####
-            if np.random.random() < 0.5: ##### Do contrast adjustment with more probability if it was enabled
-                x = random_contrast_adjustment(x)
-                contrasted = True
-            
+
         # use composition of homographies
         # to generate final transform that needs to be applied
         if self.rotation_range:
@@ -857,7 +646,7 @@ class ImageDataGenerator(object):
         else:
             ty = 0
 
-        if self.shear_range and not isDeformed:
+        if self.shear_range:
             shear = np.random.uniform(-self.shear_range, self.shear_range)
         else:
             shear = 0
@@ -897,9 +686,7 @@ class ImageDataGenerator(object):
             transform_matrix = transform_matrix_offset_center(transform_matrix, h, w)
             x = apply_transform(x, transform_matrix, img_channel_axis,
                                 fill_mode=self.fill_mode, cval=self.cval, transOrder=1)
-            mask1 = apply_transform(mask1, transform_matrix, img_channel_axis,
-                                fill_mode="constant", cval=0, transOrder=0)
-            mask2 = apply_transform(mask2, transform_matrix, img_channel_axis,
+            mask = apply_transform(mask, transform_matrix, img_channel_axis,
                                 fill_mode="constant", cval=0, transOrder=0)
             weightMap = apply_transform(weightMap, transform_matrix, img_channel_axis,
                                 fill_mode="constant", cval=0.) ### MOSSSIIII ### THIS VALUE MUST HANDEDLED BASED ON THE WEIGHT GENERATION FILE IN MATLAB
@@ -907,123 +694,25 @@ class ImageDataGenerator(object):
         if self.horizontal_flip:
             if np.random.random() < 0.5:
                 x = flip_axis(x, img_col_axis)
-                mask1 = flip_axis(mask1, img_col_axis)
-                mask2 = flip_axis(mask2, img_col_axis)
+                mask = flip_axis(mask, img_col_axis)
                 weightMap = flip_axis(weightMap, img_col_axis)
 
         if self.vertical_flip:
             if np.random.random() < 0.5:
                 x = flip_axis(x, img_row_axis)
-                mask1 = flip_axis(mask1, img_row_axis)
-                mask2 = flip_axis(mask2, img_row_axis)
+                mask = flip_axis(mask, img_row_axis)
                 weightMap = flip_axis(weightMap, img_row_axis)
 
-        if self.intensity_scale_range != 0 and not illuminated and not contrasted:
-            if np.random.random() < 0.5:
-                x = random_intensity_scaling(x,self.intensity_scale_range)
+# Randomly generating the Guiding signals for Nuclick Train/Test
+        if not self.RandomizeGuidingSignalType == None:
+            guidingSignal = generateGuidingSignal(mask, self.RandomizeGuidingSignalType)
+            weightMap[:,:,0:1] = guidingSignal[:,:,0:1]   
                 
-################################## RANDOMLY Translate the NucPoint::: JUST A LITTLE ####### For TEST
-        dilate_radius = 5
-        if self.random_click_perturb == 'Train':
-            refSize = 4000
-            maxPoint = 10
-            minPoint = 4
-            binaryMask = np.uint8(mask1[:,:,0]>(.5))
-            if np.sum(binaryMask)==0:
-                weightMap[:,:,0:1] = np.zeros_like(mask1,dtype=np.float32)
-            else:
-                temp = distance_transform_edt(binaryMask)
-                thisObject = np.uint8(temp>np.random.randint(0,3))
-                thisObject[0,:]=0
-                thisObject[:,0]=0
-                thisObject[-1,:]=0
-                thisObject[:,-1]=0
-                if np.sum(thisObject)<10:
-                    thisObject = binaryMask.copy()
-                cc = find_contours (thisObject,0)
-                cX = np.array([],dtype=np.uint16)
-                cY = np.array([],dtype=np.uint16)
-                for i in range(len(cc)):
-                    c = cc[i]
-                    thisX = np.uint16(c[:,1])
-                    thisY = np.uint16(c[:,0])
-                    cX = np.append(cX,thisX)
-                    cY = np.append(cY,thisY)
-                    
-                # Calculating the number of selected points
-                thisObject_hull = np.uint8(convex_hull_image(thisObject))
-                extent = np.sum(thisObject_hull)/np.sum(thisObject)
-                areaOrder = np.ceil(np.sum(thisObject)/refSize)+1
-                numCandid = np.ceil(areaOrder**extent)
-                minCandid = minPoint
-                maxCandid = np.min([maxPoint,numCandid])
-                maxCandid = np.max([maxCandid,minCandid+1])
-                numPoint = np.random.randint(minCandid,maxCandid)
-                step = len(cX)//numPoint + 1
-                start = np.random.randint(0,2)
-                selectedIdx = np.arange(start*step-step//2,len(cX)-(1-start)*step,step)
-    #            selectedIdx = np.random.randint(0,len(cY)-1,(numPoint,))
-                selectedX = cX[selectedIdx]+np.random.randint(-3,3,size=selectedIdx.shape)
-                selectedX = np.clip(selectedX,0,thisObject.shape[1]-1)
-                selectedY = cY[selectedIdx]+np.random.randint(-3,3,size=selectedIdx.shape)
-                selectedY = np.clip(selectedY,0,thisObject.shape[0]-1)
-                if self.pointMapType=='Polygon':
-                    rr, cc = polygon(selectedY,selectedX,shape=thisObject.shape)
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[rr,cc] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
-                if self.pointMapType=='Polyline':
-                    rr, cc = polygon_perimeter(selectedY,selectedX,shape=thisObject.shape)
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[rr,cc] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
-                if self.pointMapType=='Dilate':
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[selectedY,selectedX] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
-                    weightMap[:,:,0]= binary_dilation(weightMap[:,:,0],np.ones((dilate_radius,dilate_radius),dtype=np.float32))
-                if self.pointMapType==None:
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[selectedY,selectedX] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
-                
-        if self.random_click_perturb == 'Test':
-            selectedX = []
-            selectedY = []
-            thisObject = bwlabel(weightMap[:,:,0]>0)
-            stats = regionprops(thisObject)
-            if len(stats)>0:
-                for region in stats:
-                    thisY = np.floor(region.centroid[0]+np.random.randint(-3,3))
-                    thisY = np.max([0,thisY])
-                    thisY = np.min([thisY,mask1.shape[0]])
-                    thisX = np.floor(region.centroid[1]+np.random.randint(-3,3))
-                    thisX = np.max([thisX,0])
-                    thisX = np.min([thisX,mask1.shape[1]])
-                    selectedX.append(np.int(thisX))
-                    selectedY.append(np.int(thisY))
-                    
-                if self.pointMapType=='Polygon' and len(selectedX)>2:
-                    rr, cc = polygon(selectedY,selectedX,shape=thisObject.shape)
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[rr,cc] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
-                if self.pointMapType=='Polyline' and len(selectedX)>2:
-                    rr, cc = polygon_perimeter(selectedY,selectedX,shape=thisObject.shape)
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[rr,cc] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
-                if self.pointMapType=='Dilate':
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[selectedY,selectedX] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
-                    weightMap[:,:,0]= binary_dilation(weightMap[:,:,0],np.ones((dilate_radius,dilate_radius),dtype=np.float32))
-                if self.pointMapType==None:
-                    perimImg = np.zeros_like(thisObject)
-                    perimImg[selectedY,selectedX] = 1
-                    weightMap[:,:,0] = np.float32(perimImg)
+        if self.RandomizeGuidingSignalType == 'PointJiterring':
+            guidingSignal = jitterClicks (weightMap)
+            weightMap[:,:,0:1] = guidingSignal[:,:,0:1]  
 
-        return x, weightMap, mask1, mask2
+        return x, weightMap, mask
 
     def fit(self, x,
             augment=False,
@@ -1205,7 +894,7 @@ class NumpyArrayIterator(Iterator):
             (if `save_to_dir` is set).
     """
 
-    def __init__(self, x, weightMap, mask1, mask2, y, h, image_data_generator,
+    def __init__(self, x, weightMap, mask, y, image_data_generator,
                  batch_size=32, shuffle=False, seed=None,
                  data_format=None, color_mode='rgb',
                  save_to_dir=None, save_prefix='', save_format='png'):
@@ -1219,10 +908,8 @@ class NumpyArrayIterator(Iterator):
             data_format = K.image_data_format()
         self.x = np.asarray(x, dtype=K.floatx())
         self.weightMap=np.asarray(weightMap,dtype=K.floatx()) if weightMap is not None else None
-        self.mask1=np.asarray(mask1,dtype=K.floatx()) if mask1 is not None else None
-        self.mask2=np.asarray(mask2,dtype=K.floatx()) if mask2 is not None else None
+        self.mask=np.asarray(mask,dtype=K.floatx()) if mask is not None else None
         self.y=np.asarray(y,dtype=K.floatx()) if y is not None else None
-        self.h=np.asarray(h,dtype=K.floatx()) if h is not None else None
 
         if self.x.ndim != 4:
             raise ValueError('Input data in `NumpyArrayIterator` '
@@ -1259,7 +946,7 @@ class NumpyArrayIterator(Iterator):
         
         if data_format == 'channels_last':
             self.mask_shape = self.x.shape[1:3] + (1,)
-            self.dist_shape = self.x.shape[1:3] + (2,)
+            self.dist_shape = self.x.shape[1:3] + (3,)
         else:
             self.mask_shape = (1,) + self.x.shape[1:3]
 		
@@ -1273,19 +960,15 @@ class NumpyArrayIterator(Iterator):
     def _get_batches_of_transformed_samples(self, index_array):
         batch_x = np.zeros((len(index_array),) + self.image_shape, dtype=K.floatx()) #np.zeros(tuple([len(index_array)] + list(self.x.shape)[1:]), dtype=K.floatx())
         batch_weightMap = np.zeros((len(index_array),) + self.dist_shape, dtype=K.floatx()) #np.zeros(tuple([len(index_array)] + list(self.x.shape)[1:]), dtype=K.floatx())
-        batch_mask1 = np.zeros((len(index_array),) + self.mask_shape, dtype=K.floatx()) #np.zeros(tuple([len(index_array)] + list(self.x.shape)[1:]), dtype=K.floatx())
-        batch_mask2 = np.zeros((len(index_array),) + self.mask_shape, dtype=K.floatx()) #np.zeros(tuple([len(index_array)] + list(self.x.shape)[1:]), dtype=K.floatx())
+        batch_mask = np.zeros((len(index_array),) + self.mask_shape, dtype=K.floatx()) #np.zeros(tuple([len(index_array)] + list(self.x.shape)[1:]), dtype=K.floatx())
         for i, j in enumerate(index_array):
             x = self.x[j]
-            mask1 = self.mask1[j] if self.mask1 is not None else np.zeros(shape=self.mask_shape)
+            mask = self.mask[j] if self.mask is not None else np.zeros(shape=self.mask_shape)
             weightMap = self.weightMap[j] if self.weightMap is not None else np.zeros(shape=self.dist_shape)
-            mask2 = self.mask2[j] if self.mask2 is not None else np.zeros_like(mask1)
-            h = self.h if self.h is not None else np.zeros_like(mask1)
-            x,weightMap,mask1,mask2 = self.image_data_generator.random_transform(x.astype(K.floatx()),weightMap.astype(K.floatx()),mask1.astype(K.floatx()),mask2.astype(K.floatx()),h)
+            x,weightMap,mask = self.image_data_generator.random_transform(x.astype(K.floatx()),weightMap.astype(K.floatx()),mask.astype(K.floatx()))
             x = self.image_data_generator.standardize(x)
             batch_x[i] = x
-            batch_mask1[i] = mask1
-            batch_mask2[i] = mask2
+            batch_mask[i] = mask
             batch_weightMap[i] = weightMap
         if self.save_to_dir:
             for i, j in enumerate(index_array):
@@ -1295,15 +978,12 @@ class NumpyArrayIterator(Iterator):
                                                                   hash=np.random.randint(1e4),
                                                                   format=self.save_format)
                 img.save(os.path.join(self.save_to_dir, fname))
-        if self.mask1 is not None:
-            if self.weightMap is None and self.mask2 is not None:
-                return batch_x, [batch_mask1, batch_mask2]
-            elif self.weightMap is None and self.mask2 is None:
-                return batch_x, batch_mask1
-            elif self.weightMap is not None and self.mask2 is None:
-                return [batch_x, batch_weightMap], batch_mask1
+        if self.mask is not None:
+            if self.weightMap is None:
+                return batch_x, batch_mask
             else:
-                return [batch_x, batch_weightMap], [batch_mask1, batch_mask2]
+                return [batch_x, batch_weightMap], batch_mask#batch_mask
+
         else:
             if self.weightMap is not None:
                 return [batch_x, batch_weightMap]

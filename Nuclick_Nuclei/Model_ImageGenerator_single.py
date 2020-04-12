@@ -6,41 +6,20 @@ Created on Sun Jan 14 12:53:23 2018
 """
 
 from __future__ import print_function
-import glob
-import gc
 import os
-
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-from skimage.transform import resize
-from skimage.io import imsave, imread
-from scipy.misc import imresize
+# os.environ["CUDA_VISIBLE_DEVICES"] = config.gpu
+from skimage.io import imsave
 import numpy as np
-from keras.models import Model
-from keras.layers import Input, Lambda, concatenate, Conv2D, MaxPooling2D, Conv2DTranspose, BatchNormalization, Dropout, \
-    Activation, UpSampling2D, add, Dense, Flatten, AveragePooling2D, Add
-from keras.optimizers import Adam, SGD
-from keras.callbacks import ModelCheckpoint, RemoteMonitor, TensorBoard, CSVLogger, TerminateOnNaN, \
-    LearningRateScheduler
+from keras.callbacks import ModelCheckpoint, CSVLogger
 from keras import backend as K
-from keras.utils import multi_gpu_model
-import tensorflow as tf
-from PIL import Image, ImageOps
-import random
-from math import floor, ceil, pow
-# from nasUnet import NASUNet
-# from se import squeeze_excite_block
-# from data import load_train_data, load_test_data
-# from elastic_functions import perform_elastic_3image
+
 import matplotlib.pyplot as plt
-from data import load_data_single
+from data_generator.data import load_data_single
 from image_segmentation_singleDist_v2 import ImageDataGenerator
-from skimage import exposure
-# %matplotlib inline
+
 import h5py
-import cv2
 import warnings
 from model_factory1 import getModel
-from skimage.morphology import binary_dilation
 
 warnings.filterwarnings("ignore")
 
@@ -54,9 +33,8 @@ img_cols = 128  # 768#1024
 img_chnls = 3
 input_shape = (img_rows, img_cols)
 
-modelType = 'MultiScaleResUnet'
-cellLoss = 'bce_dice'
-marginLoss = 'jaccard'
+modelType = config.modelType #'MultiScaleResUnet'
+lossType = 'bce_dice'
 batchSize = 32  # set this as large as possible
 batchSizeVal = batchSize  # leaave this to 1 anyway
 
@@ -153,7 +131,7 @@ image_datagen_val = ImageDataGenerator(random_click_perturb = 'Train',
 Cross-Validation::: Loop over the different folds and perform train on them.
 Save the best model which has best performance on validation set in each fold.
 '''
-modelBaseName = 'nuclickNuclei_%s_%s' % (modelType, cellLoss)
+modelBaseName = 'nuclickNuclei_%s_%s' % (modelType, lossType)
 if not os.path.exists(modelBaseName):
     os.mkdir(modelBaseName)
 
@@ -183,13 +161,13 @@ modelLogName = "./%s/Log-%s.log" % (modelBaseName, modelName)
 logDir = "./%s/log" % (modelBaseName)
 csv_logger = CSVLogger(modelLogName, append=True, separator='\t')
 
-model = getModel(modelType, cellLoss, marginLoss, input_shape)
+model = getModel(modelType, lossType, marginLoss, input_shape)
 model.load_weights(modelSaveName)
 #if multi_gpu:
 #    with tf.device("/cpu:0"):
-#        model = getModel(modelType, cellLoss, marginLoss, input_shape) 
+#        model = getModel(modelType, lossType, marginLoss, input_shape) 
 #else:
-#    model = getModel(modelType, cellLoss, marginLoss, input_shape)
+#    model = getModel(modelType, lossType, marginLoss, input_shape)
 #
 #if multi_gpu:
 #    model = multi_gpu_model(model, len(gpus))
