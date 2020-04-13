@@ -250,6 +250,12 @@ def generateInstanceMap(masks, boundingBoxes, m, n):
         instanceMap[thisMaskPos[:, 0], thisMaskPos[:, 1]] = i + 1
     return instanceMap
 
+def generateInstanceMap_gland(masks):
+    instanceMap = np.zeros(masks.shape[1:3],dtype=np.uint8)
+    for i in range(len(masks)):
+        thisMask = masks[i]
+        instanceMap[thisMask] = i+1
+    return instanceMap
 
 def readImageAndGetSignals(currdir=os.getcwd()):
     drawing = False  # true if mouse is pressed
@@ -340,5 +346,5 @@ def predictSingleImage(model, img, markups):
 #            print("Contrasted images prediction, DONE!")
     preds /= predNum
     masks = postProcessing(preds, thresh=config.Thresh, minSize=config.minSize, minHole=config.minHole, doReconstruction=False)
-    instanceMap = generateInstanceMap(masks)
+    instanceMap = generateInstanceMap_gland(masks)
     return instanceMap

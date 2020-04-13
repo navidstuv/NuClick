@@ -35,7 +35,7 @@ def main():
     # img, cx, cy = readImageAndCentroids(path,name)
     # img, cx, cy = readImageFromPathAndGetClicks (path,name,ext='.bmp')
     if config.application in ['Cell', 'Nucleus']:
-        img, cx, cy, imgPath = readImageAndGetClicks(os.os.getcwd())
+        img, cx, cy, imgPath = readImageAndGetClicks(os.getcwd())
         m, n = img.shape[0:2]
         clickMap, boundingBoxes = getClickMapAndBoundingBox(cx, cy, m, n)
         patchs, nucPoints, otherPoints = getPatchs(img, clickMap, boundingBoxes, cx, cy, m, n)
@@ -82,7 +82,7 @@ def main():
         # plt.figure(),plt.imshow(img)
 
     if config.application=='Gland':
-        img, markups, imgPath = readImageAndGetSignals(os.os.getcwd())
+        img, markups, imgPath = readImageAndGetSignals(os.getcwd())
         instanceMap = predictSingleImage(model, img, markups)
         instanceMap_RGB = label2rgb(np.uint8(instanceMap), image=img, alpha=0.3, bg_label=0, bg_color=(0, 0, 0),
                                     image_alpha=1, kind='overlay')
