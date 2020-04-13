@@ -3,12 +3,9 @@ from skimage.filters import gaussian
 import cv2
 import tkinter
 from tkinter import filedialog
-from skimage.util import pad
-from skimage.transform import rescale
-from keras.models import Model
-from skimage.morphology import remove_small_objects, remove_small_holes, reconstruction, binary_dilation, disk
+from skimage.morphology import remove_small_objects, remove_small_holes, reconstruction, disk
 import numpy as np
-from skimage.io import imsave, imread
+from skimage.io import imread
 import os
 from data_handler.customImageGenerator import ImageDataGenerator
 import pandas as pd
