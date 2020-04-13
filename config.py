@@ -1,9 +1,9 @@
 class DefaultConfigs(object):
-    application = 'Nucleus' # either: 'Nucleus', 'Cell' (for WBC segmentation), 'Gland'
+    application = 'Gland' # either: 'Nucleus', 'Cell' (for WBC segmentation), 'Gland'
     multiGPU = False
     LearningRate = 4e-4
     modelType = 'MultiScaleResUnet'
-    lossType = 'bce_dice'
+    lossType = 'complexBCEweighted'
     batchSize = 32  # set this as large as possible
     
     if application=='Nucleus':

@@ -339,6 +339,6 @@ def predictSingleImage(model, img, markups):
         predNum += 1
 #            print("Contrasted images prediction, DONE!")
     preds /= predNum
-    masks = postProcessing(preds, thresh=0.5, minSize=1000, minHole=1000, doReconstruction=False)
+    masks = postProcessing(preds, thresh=config.Thresh, minSize=config.minSize, minHole=config.minHole, doReconstruction=False)
     instanceMap = generateInstanceMap(masks)
     return instanceMap

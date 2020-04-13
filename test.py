@@ -81,7 +81,7 @@ def main():
         imsave(imgPath[:-4] + '_points.png', np.uint8(255 * np.sum(nucPoints, axis=(0, 3))))
         # plt.figure(),plt.imshow(img)
 
-    if config.application=='gland':
+    if config.application=='Gland':
         img, markups, imgPath = readImageAndGetSignals(os.os.getcwd())
         instanceMap = predictSingleImage(model, img, markups)
         instanceMap_RGB = label2rgb(np.uint8(instanceMap), image=img, alpha=0.3, bg_label=0, bg_color=(0, 0, 0),
