@@ -82,7 +82,7 @@ def main():
         # plt.figure(),plt.imshow(img)
 
     if config.application=='Gland':
-        img, markups, imgPath = readImageAndGetSignals(os.os.getcwd())
+        img, markups, imgPath = readImageAndGetSignals(os.getcwd())
         instanceMap = predictSingleImage(model, img, markups)
         instanceMap_RGB = label2rgb(np.uint8(instanceMap), image=img, alpha=0.3, bg_label=0, bg_color=(0, 0, 0),
                                     image_alpha=1, kind='overlay')
