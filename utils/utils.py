@@ -192,7 +192,7 @@ def getPatchs_gland(img, clickMap):
     otherPoints=np.zeros((total,)+clickMap.shape[1:], dtype=np.uint8)
     for i in range(total):
         patchs[i] = img[0]
-        thisClickMap = np.uint8(255*(clickMap==uniqueSignals[i]))
+        thisClickMap = np.uint8((clickMap==uniqueSignals[i]))
         nucPoints[i] = thisClickMap
         othersClickMap = np.uint8(((1-(clickMap==uniqueSignals[i]))*clickMap))
         thisUniqueValues = np.unique(othersClickMap)
