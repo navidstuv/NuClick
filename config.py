@@ -40,5 +40,19 @@ class DefaultConfigs(object):
         valPrec = 0.2 # if no validation folder specified, this part of training set would be used for validation
 
     testTimeAug = True
-    
+    testTimeJittering = 'PointJiterring' #None
+    if application=='Gland':
+        Thresh = 0.5
+        minSize=1000
+        minHole=1000
+    elif application=='Cell':
+        Thresh = 0.8
+        minSize=100
+        minHole=100
+    else:
+        Thresh = 0.5
+        minSize=10
+        minHole=30
+        
+        
 config = DefaultConfigs()

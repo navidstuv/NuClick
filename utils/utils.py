@@ -12,13 +12,14 @@ from skimage.io import imsave, imread
 import os
 from data_handler.customImageGenerator import ImageDataGenerator
 import pandas as pd
+import random
+from config import config
 
-bb = 256
 seeddd = 1
-modelEnsembling = True
-testTimeAug = True
+bb = config.img_rows
+testTimeAug = config.testTimeAug
 
-
+colorPallete = [(random.randrange(0, 240), random.randrange(0, 240), random.randrange(0, 240)) for i in range(1000)]
 
 def _unsharp_mask_single_channel(image, radius, amount):
     """Single channel implementation of the unsharp masking filter."""
@@ -179,10 +180,40 @@ def getPatchs(img, clickMap, boundingBoxes, cx, cy, m, n):
         otherPoints[i] = othersClickMap[0, yStart:yEnd + 1, xStart:xEnd + 1, :]
     return patchs, nucPoints, otherPoints
 
+def getPatchs_gland(img, clickMap):
+    uniqueSignals = np.unique(clickMap)
+    uniqueSignals = uniqueSignals[1:]
+    total = len(uniqueSignals)
+    img = np.array([img])
+    clickMap = np.array([clickMap])
+    clickMap = clickMap[..., np.newaxis]
+    patchs=np.ndarray((total,)+img.shape[1:], dtype=np.uint8)
+    nucPoints=np.ndarray((total,)+clickMap.shape[1:], dtype=np.uint8)
+    otherPoints=np.zeros((total,)+clickMap.shape[1:], dtype=np.uint8)
+    for i in range(total):
+        patchs[i] = img[0]
+        thisClickMap = np.uint8(255*(clickMap==uniqueSignals[i]))
+        nucPoints[i] = thisClickMap
+        othersClickMap = np.uint8(((1-(clickMap==uniqueSignals[i]))*clickMap))
+        thisUniqueValues = np.unique(othersClickMap)
+        thisUniqueValues = thisUniqueValues[1:]
+        cx=np.ndarray((total-1), dtype=np.uint16)
+        cy=np.ndarray((total-1), dtype=np.uint16)
+        for j in range(len(thisUniqueValues)):
+            thisOtherMask = othersClickMap[0,:,:,0]==thisUniqueValues[j]
+            cyCandids, cxCandids = np.where(thisOtherMask==1)
+            rndIdx = np.random.randint(0,high=len(cyCandids))
+            cx[j] = cxCandids[rndIdx]
+            cy[j] = cyCandids[rndIdx]
+#            print((np.floor(thisCent[0]).astype('uint16'),np.floor(thisCent[1]).astype('uint16')))
+        thisOtherPoints = np.zeros(clickMap.shape[1:3],dtype='uint8')
+        thisOtherPoints[cy,cx] = 1
+        otherPoints[i,:,:,0] = thisOtherPoints
+    return patchs, nucPoints, otherPoints
 
-def predictPatchs(model, patchs, dists):
+def predictPatchs(model, patchs, dists, clickPrtrb=None):
     num_val = len(patchs)
-    image_datagen_val = ImageDataGenerator(rescale=1. / 255)
+    image_datagen_val = ImageDataGenerator(RandomizeGuidingSignalType = clickPrtrb, rescale=1. / 255)
     batchSizeVal = 1
     val_generator = image_datagen_val.flow(
         patchs, weightMap=dists,
@@ -190,7 +221,7 @@ def predictPatchs(model, patchs, dists):
         batch_size=batchSizeVal,
         color_mode='rgb',
         seed=seeddd)
-    preds = model.predict_generator(val_generator, steps=num_val // batchSizeVal)
+    preds  = model.predict_generator(val_generator, steps=num_val // batchSizeVal)
     preds = np.matrix.squeeze(preds, axis=3)
     return preds
 
@@ -276,7 +307,7 @@ def readImageAndGetSignals(currdir=os.getcwd()):
 
 
 def predictSingleImage(model, img, markups):
-    patchs, includeMap, excludeMap = getPatchs(img, markups)
+    patchs, includeMap, excludeMap = getPatchs_gland(img, markups)
     # patchs, nucPoints, otherPoints = getPatchs(img, clickMap, boundingBoxes, cx, cy, m, n)
     dists = np.float32(np.concatenate((includeMap, excludeMap, excludeMap), axis=3))  # the last one is only dummy!
     predNum = 0  # len(models)
