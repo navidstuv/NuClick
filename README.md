@@ -1,10 +1,10 @@
-# NuClick++
+# NuClick
  Clicks inside the nuclei or draw a scribble inside glands to obtain segmentation.
  
 ![alt text](gifs/11.gif "H&E")![alt text](gifs/22.gif "H&E") ![alt text](gifs/33.gif "H&E")
 
 
- ##Inference:
+ ## Inference:
  Download weights for nucelues segmentation from [here]( https://drive.google.com/open?id=1MGjZs_-2Xo1W9NZqbq_5XLP-VbIo-ltA) and save it inside `weights` folder:
  * Set `application` in the `config.py` 
  * Run `test.py` to use the interface.
