@@ -1,4 +1,4 @@
-# NuClick++
+# NuClick
  Clicks inside the nuclei or draw a scribble inside glands to obtain segmentation.
  This is Keras implementation of NuClick ([link to paper ](https://arxiv.org/pdf/1909.03253.pdf) )
  
