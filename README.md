@@ -1,7 +1,7 @@
 # NuClick++
  Clicks inside the nuclei or draw a scribble inside glands to obtain segmentation.
  
- ![alt text](gifs/1.gif "Lymphocytes")  ![alt text](gifs/2.gif "Lymphocytes") ![alt text](gifs/11.gif "Lymphocytes")![alt text](gifs/22.gif "Lymphocytes") 
+![alt text](gifs/11.gif "H&E")![alt text](gifs/22.gif "H&E") ![alt text](gifs/44.gif "H&E") ![alt text](gifs/44.gif "H&E") 
  ##Inference:
  Download weights for nucelues segmentation from [here]( https://drive.google.com/open?id=1MGjZs_-2Xo1W9NZqbq_5XLP-VbIo-ltA) and save it inside `weights` folder:
  * Set `application` in the `config.py` 
