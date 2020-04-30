@@ -1,5 +1,5 @@
 class DefaultConfigs(object):
-    application = 'Gland' # either: 'Nucleus', 'Cell' (for WBC segmentation), 'Gland'
+    application = 'Nucleus' # either: 'Nucleus', 'Cell' (for WBC segmentation), 'Gland'
     multiGPU = False
     LearningRate = 4e-4
     modelType = 'MultiScaleResUnet'
@@ -29,11 +29,17 @@ class DefaultConfigs(object):
         guidingSignalType = 'Point'
 
     #path to train folder comprising info folders and npy folders
-    train_data_path = 'F:/Nuclick project_Hemato/Data/nuclick_data/train/' 
+    train_data_path = ''
     valid_data_path = None
     weights_path = './weights'
     preds_path = './preds'
-    
+
+    # for processing images with their coressponding dots
+    mat_path = ''
+    images_path = ''
+    save_path = ''
+    ##########################################################
+
     resumeTraining = False
     outputValPreds = True # whether to run on validation set when training ends
     if valid_data_path is None:

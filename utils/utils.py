@@ -12,6 +12,8 @@ import pandas as pd
 import random
 from config import config
 from PIL import Image
+from scipy.io import loadmat
+import warnings
 
 seeddd = 1
 bb = config.img_rows
@@ -131,9 +133,22 @@ def readImageAndCentroids(path, name, ext='.bmp'):
     cy = cents[:, 1]
     return img, cx, cy
 
-
 def getClickMapAndBoundingBox(cx, cy, m, n):
     clickMap = np.zeros((m, n), dtype=np.uint8)
+
+    # Removing points out of image dimension (these points may have been clicked unwanted)
+    cx_out = [x for x in cx if x >= n]
+    cx_out_index = [cx.index(x) for x in cx_out]
+
+    cy_out = [x for x in cy if x >= m]
+    cy_out_index = [cy.index(x) for x in cy_out]
+
+    indexes = cx_out_index + cy_out_index
+    cx = np.delete(cx, indexes)
+    cx = cx.tolist()
+    cy = np.delete(cy, indexes)
+    cy = cy.tolist()
+
     clickMap[cy, cx] = 1
     boundingBoxes = []
     for i in range(len(cx)):
@@ -163,7 +178,17 @@ def getPatchs(img, clickMap, boundingBoxes, cx, cy, m, n):
     patchs = np.ndarray((total, bb, bb, 3), dtype=np.uint8)
     nucPoints = np.ndarray((total, bb, bb, 1), dtype=np.uint8)
     otherPoints = np.ndarray((total, bb, bb, 1), dtype=np.uint8)
+    cx_out = [x for x in cx if x >= n]
+    cx_out_index = [cx.index(x) for x in cx_out]
 
+    cy_out = [x for x in cy if x >= m]
+    cy_out_index = [cy.index(x) for x in cy_out]
+
+    indexes = cx_out_index + cy_out_index
+    cx = np.delete(cx, indexes)
+    cx = cx.tolist()
+    cy = np.delete(cy, indexes)
+    cy = cy.tolist()
     for i in range(len(boundingBoxes)):
         boundingBox = boundingBoxes[i]
         xStart = boundingBox[0]
@@ -209,9 +234,9 @@ def getPatchs_gland(img, clickMap):
         otherPoints[i,:,:,0] = thisOtherPoints
     return patchs, nucPoints, otherPoints
 
-def predictPatchs(model, patchs, dists, clickPrtrb=None):
+def predictPatchs(model, patchs, dists, clickPrtrb='PointJiterring'):
     num_val = len(patchs)
-    image_datagen_val = ImageDataGenerator(RandomizeGuidingSignalType = clickPrtrb, rescale=1. / 255)
+    image_datagen_val = ImageDataGenerator(RandomizeGuidingSignalType=clickPrtrb, rescale=1. / 255)
     batchSizeVal = 1
     val_generator = image_datagen_val.flow(
         patchs, weightMap=dists,
@@ -219,24 +244,25 @@ def predictPatchs(model, patchs, dists, clickPrtrb=None):
         batch_size=batchSizeVal,
         color_mode='rgb',
         seed=seeddd)
-    preds  = model.predict_generator(val_generator, steps=num_val // batchSizeVal)
+    preds = model.predict_generator(val_generator, steps=num_val // batchSizeVal)
     preds = np.matrix.squeeze(preds, axis=3)
     return preds
 
 
 def postProcessing(preds, thresh=0.33, minSize=10, minHole=30, doReconstruction=False, nucPoints=None):
     masks = preds > thresh
-    for i in range(len(masks)):
-        masks[i] = remove_small_objects(masks[i], min_size=minSize)
-        masks[i] = remove_small_holes(masks[i], area_threshold=minHole)
+    masks = remove_small_objects(masks, min_size=minSize)
+    masks = remove_small_holes(masks, area_threshold=minHole)
     if doReconstruction:
         for i in range(len(masks)):
             thisMask = masks[i]
             thisMarker = nucPoints[i, :, :, 0] > 0
-            thisMask = reconstruction(thisMarker, thisMask, selem=disk(1))
-            masks[i] = np.array([thisMask])
+            try:
+                thisMask = reconstruction(thisMarker, thisMask, selem=disk(1))
+                masks[i] = np.array([thisMask])
+            except:
+                warnings.warn('Nuclei reconstruction error #' + str(i))
     return masks
-
 
 def generateInstanceMap(masks, boundingBoxes, m, n):
     instanceMap = np.zeros((m, n), dtype=np.uint16)
@@ -247,6 +273,7 @@ def generateInstanceMap(masks, boundingBoxes, m, n):
         thisMaskPos[:, 1] = thisMaskPos[:, 1] + thisBB[0]
         instanceMap[thisMaskPos[:, 0], thisMaskPos[:, 1]] = i + 1
     return instanceMap
+
 
 def generateInstanceMap_gland(masks):
     instanceMap = np.zeros(masks.shape[1:3],dtype=np.uint8)
@@ -380,3 +407,19 @@ def readImageAndCentroids(img_path, dot_path, name):
         return [img, cx, cy]
     else:
         return [np.zeros((img.shape[0], img.shape[1]))]
+
+def sharpnessEnhancement(imgs):  # needs the input to be in range of [0,1]
+    imgs_out = imgs.copy()
+    for channel in range(imgs_out.shape[-1]):
+        imgs_out[..., channel] = 255 * _unsharp_mask_single_channel(imgs_out[..., channel] / 255., 2, .5)
+    return imgs_out
+
+def contrastEnhancement(imgs):  # needs the input to be in range of [0,255]
+    imgs_out = imgs.copy()
+    p2, p98 = np.percentile(imgs_out, (2, 98))  #####
+    if p2 == p98:
+        p2, p98 = np.min(imgs_out), np.max(imgs_out)
+    if p98 > p2:
+        imgs_out = exposure.rescale_intensity(imgs_out, in_range=(p2, p98), out_range=(0., 255.))
+    return imgs_out
+
