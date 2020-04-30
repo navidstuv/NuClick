@@ -7,7 +7,7 @@
 
 
  ## Inference:
- Download weights for nuceues segmentation from [here]( https://drive.google.com/open?id=1MGjZs_-2Xo1W9NZqbq_5XLP-VbIo-ltA) and save it inside `weights` folder:
+ Download weights for nuclues segmentation from [here]( https://drive.google.com/open?id=1MGjZs_-2Xo1W9NZqbq_5XLP-VbIo-ltA) and save it inside `weights` folder:
  * Set `application` in the `config.py` 
  * Run `test.py` to use the interface.
  
