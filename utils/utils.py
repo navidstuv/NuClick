@@ -11,6 +11,7 @@ from data_handler.customImageGenerator import ImageDataGenerator
 import pandas as pd
 import random
 from config import config
+from PIL import Image
 
 seeddd = 1
 bb = config.img_rows
@@ -227,7 +228,7 @@ def postProcessing(preds, thresh=0.33, minSize=10, minHole=30, doReconstruction=
     masks = preds > thresh
     for i in range(len(masks)):
         masks[i] = remove_small_objects(masks[i], min_size=minSize)
-        masks[i] = remove_small_holes(masks[i], min_size=minHole)
+        masks[i] = remove_small_holes(masks[i], area_threshold=minHole)
     if doReconstruction:
         for i in range(len(masks)):
             thisMask = masks[i]
@@ -345,3 +346,37 @@ def predictSingleImage(model, img, markups):
     masks = postProcessing(preds, thresh=config.Thresh, minSize=config.minSize, minHole=config.minHole, doReconstruction=False)
     instanceMap = generateInstanceMap_gland(masks)
     return instanceMap
+
+def readImageAndCentroids(img_path, dot_path, name):
+    all_cents = []
+    resize = True
+    scale = 2
+    try:
+        # img = imread(os.path.join(img_path, name[:-4]+'.tif'))
+        img = Image.open(os.path.join(img_path, name[:-4] + '.tif'))
+        if resize == True:
+            img = img.resize((img.size[0] * scale, img.size[1] * scale), Image.BICUBIC)
+        img = np.asarray(img)
+    except:
+        print('image {} has some problem in reading'.format(name))
+        # img = imread(os.path.join(img_path, name[:-4] + '.png'))
+        img = Image.open(os.path.join(img_path, name[:-4] + '.png'))
+        if resize == True:
+            img = img.resize((img.size[0] * scale, img.size[1] * scale), Image.BICUBIC)
+        img = np.asarray(img)
+
+    cents = loadmat(os.path.join(dot_path, name))
+    for key in cents.keys():
+        if key not in ['__header__', '__version__', '__globals__', 'NoNuclei']:
+            all_cents = np.ndarray.tolist(cents[key]) + all_cents
+    if resize == True:
+        all_cents = [[x[0] * scale, x[1] * scale] for x in all_cents]
+    else:
+        all_cents = [[x[0], x[1]] for x in all_cents]
+    if len(all_cents):
+        all_cents = np.array(all_cents)
+        cx = all_cents[:, 0]
+        cy = all_cents[:, 1]
+        return [img, cx, cy]
+    else:
+        return [np.zeros((img.shape[0], img.shape[1]))]
