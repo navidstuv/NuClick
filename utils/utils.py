@@ -12,8 +12,9 @@ import pandas as pd
 import random
 from config import config
 from PIL import Image
-from scipy.io import loadmat
+from scipy.io import loadmat, savemat
 import warnings
+from scipy.ndimage.measurements import center_of_mass
 
 seeddd = 1
 bb = config.img_rows
@@ -316,6 +317,7 @@ def readImageAndGetSignals(currdir=os.getcwd()):
         filetypes=(("PNG", "*.png"), ("JPG", "*.jpg"), ("BMP", "*.bmp"), ("TIF", "*.tif"), ("All files", "*")),
         parent=root, initialdir=currdir, title='Please select an image')
     im = cv2.imread(imgPath)
+    # im = cv2.resize(im, (512,512))
     signal = np.zeros(im.shape, dtype='uint8')
     clone = im.copy()
 
@@ -376,34 +378,25 @@ def predictSingleImage(model, img, markups):
 
 def readImageAndCentroids(img_path, dot_path, name):
     all_cents = []
-    resize = True
-    scale = 2
     try:
         # img = imread(os.path.join(img_path, name[:-4]+'.tif'))
-        img = Image.open(os.path.join(img_path, name[:-4] + '.tif'))
-        if resize == True:
-            img = img.resize((img.size[0] * scale, img.size[1] * scale), Image.BICUBIC)
+        img = Image.open(os.path.join(img_path, name[:-9] + '.tif'))
         img = np.asarray(img)
     except:
         print('image {} has some problem in reading'.format(name))
         # img = imread(os.path.join(img_path, name[:-4] + '.png'))
-        img = Image.open(os.path.join(img_path, name[:-4] + '.png'))
-        if resize == True:
-            img = img.resize((img.size[0] * scale, img.size[1] * scale), Image.BICUBIC)
+        img = Image.open(os.path.join(img_path, name[:-9] + '.png'))
         img = np.asarray(img)
 
     cents = loadmat(os.path.join(dot_path, name))
     for key in cents.keys():
         if key not in ['__header__', '__version__', '__globals__', 'NoNuclei']:
             all_cents = np.ndarray.tolist(cents[key]) + all_cents
-    if resize == True:
-        all_cents = [[x[0] * scale, x[1] * scale] for x in all_cents]
-    else:
-        all_cents = [[x[0], x[1]] for x in all_cents]
+    all_cents = [[x[0], x[1]] for x in all_cents]
     if len(all_cents):
         all_cents = np.array(all_cents)
-        cx = all_cents[:, 0]
-        cy = all_cents[:, 1]
+        cx = all_cents[:, 1]
+        cy = all_cents[:, 0]
         return [img, cx, cy]
     else:
         return [np.zeros((img.shape[0], img.shape[1]))]
@@ -423,3 +416,23 @@ def contrastEnhancement(imgs):  # needs the input to be in range of [0,255]
         imgs_out = exposure.rescale_intensity(imgs_out, in_range=(p2, p98), out_range=(0., 255.))
     return imgs_out
 
+def extract_centroids(mask):
+    '''
+    Extrac centroids of instances in instance-wise segmentation mask
+    :param mask:
+    :return: return coordinates
+    '''
+    unique_labels = np.unique(mask)
+    unique_labels = list(unique_labels)
+    unique_labels.remove(0)
+    bin_mask = mask > 0
+    centroids = center_of_mass(bin_mask, labels=mask, index=unique_labels)
+    return centroids
+
+if __name__=='__main__':
+    path = 'E:\Back_up\git-files\\Nuclick--\monuseg-data\masks'
+    path_list = os.listdir(path)
+    for img in path_list:
+        mask = imread(os.path.join(path, img))
+        centroids = extract_centroids(mask)
+        savemat(os.path.join(path, img[:-4]+'.mat'), {'centers':centroids})
