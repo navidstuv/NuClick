@@ -52,7 +52,7 @@ class DefaultConfigs(object):
         testTimeJittering = 'PointJiterring'
      #None
     if application=='Gland':
-        Thresh = 0.5
+        Thresh = 0.3
         minSize=1000
         minHole=1000
     elif application=='Cell':
