@@ -234,7 +234,7 @@ def getPatchs_gland(img, clickMap):
         otherPoints[i,:,:,0] = thisOtherPoints
     return patchs, nucPoints, otherPoints
 
-def predictPatchs(model, patchs, dists, clickPrtrb='PointJiterring'):
+def predictPatchs(model, patchs, dists, clickPrtrb=config.testTimeJittering):
     num_val = len(patchs)
     image_datagen_val = ImageDataGenerator(RandomizeGuidingSignalType=clickPrtrb, rescale=1. / 255)
     batchSizeVal = 1
@@ -340,7 +340,7 @@ def readImageAndGetSignals(currdir=os.getcwd()):
 def predictSingleImage(model, img, markups):
     patchs, includeMap, excludeMap = getPatchs_gland(img, markups)
     # patchs, nucPoints, otherPoints = getPatchs(img, clickMap, boundingBoxes, cx, cy, m, n)
-    dists = np.float32(np.concatenate((includeMap, excludeMap, excludeMap), axis=3))  # the last one is only dummy!
+    dists = np.float32(np.concatenate((255*includeMap, excludeMap, excludeMap), axis=3))  # the last one is only dummy!
     predNum = 0  # len(models)
     # dists = clickMap[np.newaxis,...,np.newaxis]
     if testTimeAug:

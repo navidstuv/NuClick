@@ -1,5 +1,5 @@
 class DefaultConfigs(object):
-    application = 'Nucleus' # either: 'Nucleus', 'Cell' (for WBC segmentation), 'Gland'
+    application = 'Gland' # either: 'Nucleus', 'Cell' (for WBC segmentation), 'Gland'
     multiGPU = False
     LearningRate = 4e-4
     modelType = 'MultiScaleResUnet'
@@ -46,7 +46,11 @@ class DefaultConfigs(object):
         valPrec = 0.2 # if no validation folder specified, this part of training set would be used for validation
 
     testTimeAug = True
-    testTimeJittering = 'PointJiterring' #None
+    if application=='Gland':
+        testTimeJittering = None
+    else:
+        testTimeJittering = 'PointJiterring'
+     #None
     if application=='Gland':
         Thresh = 0.5
         minSize=1000
