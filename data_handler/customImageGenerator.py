@@ -704,9 +704,9 @@ class ImageDataGenerator(object):
                 weightMap = flip_axis(weightMap, img_row_axis)
 
 # Randomly generating the Guiding signals for Nuclick Train/Test
-#         if not self.RandomizeGuidingSignalType == None:
-#             guidingSignal = generateGuidingSignal(mask, self.RandomizeGuidingSignalType)
-#             weightMap[:,:,0:1] = guidingSignal[:,:,0:1]
+        if not self.RandomizeGuidingSignalType == None:
+            guidingSignal = generateGuidingSignal(mask, self.RandomizeGuidingSignalType)
+            weightMap[:,:,0:1] = guidingSignal[:,:,0:1]
                 
         if self.RandomizeGuidingSignalType == 'PointJiterring':
             guidingSignal = jitterClicks (weightMap)

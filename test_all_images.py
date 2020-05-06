@@ -4,7 +4,7 @@ Consists functions to used for nuclick prediction
 
 """
 import numpy as np
-from skimage.io import imsave
+from skimage.io import imsave, imread
 import os
 from models.models import getModel
 from utils.utils import readImageAndCentroids, getClickMapAndBoundingBox, getPatchs, sharpnessEnhancement,\
@@ -17,7 +17,7 @@ from skimage.color import label2rgb
 def main():
     Dot_path = config.mat_path
     image_path = config.images_path
-    save_path = config.save_oath
+    save_path = config.save_path
     testTimeAug = config.testTimeAug
     modelNames = [config.modelType]
     losses = [config.lossType]
@@ -48,7 +48,6 @@ def main():
                 pass
             else:
                 img, cx, cy = out
-                m, n = img.shape[0:2]
                 cx = [int(np.round(i)) for i in cx]
                 cy = [int(np.round(i)) for i in cy]
                 m, n = img.shape[0:2]
@@ -103,3 +102,5 @@ def main():
                 # plt.figure(),plt.imshow(img)
 if __name__=='__main__':
     main()
+    # aa = imread('E:\Back_up\git-files\\Nuclick--\here\TCGA-RD-A8N9-01A-01-TS1_mask_instances.png')
+    # aa

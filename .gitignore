@@ -17,6 +17,7 @@ __pycache__/
 *.h5
 *.txt
 *.zip
+*.tif
 
 # Model and other data
 *.pth
