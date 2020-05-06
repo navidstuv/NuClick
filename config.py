@@ -1,5 +1,5 @@
 class DefaultConfigs(object):
-    application = 'Gland' # either: 'Nucleus', 'Cell' (for WBC segmentation), 'Gland'
+    application = 'Nucleus' # either: 'Nucleus', 'Cell' (for WBC segmentation), 'Gland'
     multiGPU = False
     LearningRate = 4e-4
     modelType = 'MultiScaleResUnet'
@@ -35,9 +35,9 @@ class DefaultConfigs(object):
     preds_path = './preds'
 
     # for processing images with their coressponding dots
-    mat_path = 'E:\Back_up\git-files\\Nuclick--\monuseg-data\mats'
-    images_path = 'E:\Back_up\git-files\\Nuclick--\monuseg-data\images'
-    save_path = 'here'
+    mat_path = ''
+    images_path = ''
+    save_path = ''
     ##########################################################
 
     resumeTraining = False
