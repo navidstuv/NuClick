@@ -46,7 +46,11 @@ class DefaultConfigs(object):
         valPrec = 0.2 # if no validation folder specified, this part of training set would be used for validation
 
     testTimeAug = True
-    testTimeJittering = 'PointJiterring' #None
+    if application=='Gland':
+        testTimeJittering = None
+    else:
+        testTimeJittering = 'PointJiterring'
+     #None
     if application=='Gland':
         Thresh = 0.5
         minSize=1000

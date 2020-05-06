@@ -40,7 +40,7 @@ def main():
         clickMap, boundingBoxes = getClickMapAndBoundingBox(cx, cy, m, n)
         patchs, nucPoints, otherPoints = getPatchs(img, clickMap, boundingBoxes, cx, cy, m, n)
         dists = np.float32(np.concatenate((nucPoints, otherPoints, otherPoints), axis=3))  # the last one is only dummy!
-
+    
         # prediction with test time augmentation
         predNum = 0  # augNum*numModel
         preds = np.zeros((len(patchs), img_rows, img_cols), dtype=np.float32)
@@ -80,7 +80,7 @@ def main():
         imsave(imgPath[:-4] + '_instances.png', instanceMap * 255)
         imsave(imgPath[:-4] + '_points.png', np.uint8(255 * np.sum(nucPoints, axis=(0, 3))))
         # plt.figure(),plt.imshow(img)
-
+    
     if config.application=='Gland':
         img, markups, imgPath = readImageAndGetSignals(os.getcwd())
         instanceMap = predictSingleImage(model, img, markups)
