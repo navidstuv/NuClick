@@ -1,6 +1,6 @@
 """
 Nuclick Prediction
-Consists functions to be used for nuclick prediction
+Consists functions to be used for NuClick prediction
 
 """
 import numpy as np
