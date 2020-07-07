@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Saving model checkpoints for multi gpu training
-
-@author: Mosi
-"""
 from keras.callbacks import ModelCheckpoint
 class ModelCheckpointMGPU(ModelCheckpoint):
     def __init__(self, original_model, filepath, monitor='val_loss', verbose=0, save_best_only=False,

@@ -1,11 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Generating random guiding signals to be used in customImageGenerator.py
-guiding signals are points or squigles inside the input mask.
-Points are used fornucleus/cell and squigle for gland markings.
-
-@author: Jahanifar
-"""
 import numpy as np
 from scipy.ndimage.morphology import distance_transform_edt
 import scipy.ndimage as ndi
