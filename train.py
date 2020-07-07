@@ -1,17 +1,14 @@
-# -*- coding: utf-8 -*-
 """
 This code can be used to train NuClick on your own data. 
 You can train from scratch or fine-tuning one of the existing models.
 Generally, training models follows the scheme of one of following applications:
-    Nucleues, Cell, Glands
+    Nucleus, Cell, Glands
 However, you can control the training process by adjusting the parameters in the 
 config.py files.
 
 For more information, read our arXiv paper:
     NuClick: From Clicks in the Nuclei to Nuclear Boundaries
     https://arxiv.org/abs/1909.03253
-
-@author: Mosi
 """
 
 from __future__ import print_function
