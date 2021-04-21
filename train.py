@@ -151,7 +151,7 @@ if config.outputValPreds:
     
     pred_dir = "%s/valPred_%s" % (config.preds_path, modelBaseName)
     if not os.path.exists(pred_dir):
-        os.mkdir(pred_dir)
+        os.makedirs(pred_dir, exist_ok=True)
     
     imgs_mask_test = np.matrix.squeeze(val_predicts, axis=3)
     for image_id in range(0, len(imgs_mask_test)):
