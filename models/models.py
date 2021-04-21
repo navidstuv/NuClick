@@ -15,6 +15,9 @@ from keras import backend as K
 from keras.utils import multi_gpu_model
 from models.losses import getLoss, dice_coef
 import tensorflow as tf
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+tf.keras.backend.set_session(tf.Session(config=config))
 from config import config
 
 
